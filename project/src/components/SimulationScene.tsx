@@ -9,8 +9,8 @@ import AudioPlayer from './AudioPlayer';
 import SBARChart from './SBARChart';
 import { useAudioData } from '../hooks/useAudioData';
 import ProgressBar from './ProgressBar';
-import { scenes } from '../data/scenesData';
 import { useVideoData } from '../hooks/useVideoData';
+import { useSceneConfig } from '../hooks/useSceneConfig';
 import { ChevronLeft, ChevronRight, Clock, RefreshCw, Share2 } from 'lucide-react';
 
 const SimulationScene: React.FC = () => {
@@ -27,7 +27,9 @@ const SimulationScene: React.FC = () => {
   const [previousSceneId, setPreviousSceneId] = useState<string | null>(null);
 
   const currentSceneNumber = parseInt(sceneId || '1');
-  const scene = scenes[currentSceneNumber - 1];
+  
+  // Load scene configuration from database (with static fallback)
+  const { sceneData: scene, loading: sceneLoading } = useSceneConfig(currentSceneNumber);
   
   // Get video URL from database first, then fallback to scene data
   const videoData = videos.find(v => v.scene_id === currentSceneNumber);
@@ -107,6 +109,9 @@ const SimulationScene: React.FC = () => {
   }, [sceneId, state.userData.responses, isCurrentSceneCompleted, previousSceneId]);
 
   useEffect(() => {
+    // Wait for scene to load before checking
+    if (sceneLoading) return;
+    
     if (!scene) {
       navigate('/');
       return;
@@ -120,7 +125,7 @@ const SimulationScene: React.FC = () => {
 
     dispatch({ type: 'SET_CURRENT_SCENE', payload: currentSceneNumber });
     setSceneStartTime(Date.now());
-  }, [sceneId, scene, dispatch, navigate, currentSceneNumber, canAccessScene, maxAccessibleScene]);
+  }, [sceneId, scene, sceneLoading, dispatch, navigate, currentSceneNumber, canAccessScene, maxAccessibleScene]);
 
   // Handle quiz answers (triggered by Continue button)
   const handleQuizAnswered = (responses: Array<{ questionId: string; answer: string; isCorrect: boolean }>) => {
@@ -237,17 +242,28 @@ const SimulationScene: React.FC = () => {
   const canGoNext = isCurrentSceneCompleted || currentSceneNumber < maxAccessibleScene;
   const canGoPrevious = currentSceneNumber > 1;
 
-  if (!scene) {
+  // Show loading state while scene data is being fetched from database
+  if (sceneLoading || !scene) {
     return (
-      <div className="h-screen flex items-center justify-center">
-        <div className="text-white text-xl">Scene not found</div>
+      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
+        <div className="text-center">
+          {sceneLoading ? (
+            <>
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto mb-4"></div>
+              <div className="text-white text-xl font-semibold mb-2">Loading scene configuration...</div>
+              <div className="text-gray-400">Please wait while we load the latest data from database</div>
+            </>
+          ) : (
+            <div className="text-white text-xl">Scene not found</div>
+          )}
+        </div>
       </div>
     );
   }
 
   if (!canAccessScene) {
     return (
-      <div className="h-screen flex items-center justify-center">
+      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
         <div className="text-white text-xl">Loading...</div>
       </div>
     );

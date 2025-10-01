@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { X, Save, Edit, Eye, FileText, Download, Video } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Save, Edit, Eye, FileText, Download, Video, CheckCircle } from 'lucide-react';
 import { SceneData } from '../../data/scenesData';
 import { useVideoData } from '../../hooks/useVideoData';
 import PatientVitalsEditor from './PatientVitalsEditor';
@@ -12,7 +12,7 @@ import ScenePreview from '../ScenePreview';
 
 interface SceneEditorModalProps {
   scene: SceneData;
-  onSave: (scene: SceneData) => Promise<void> | void;
+  onSave: (scene: SceneData) => Promise<boolean>;
   onClose: () => void;
   onExport?: (sceneId: number) => void;
 }
@@ -31,14 +31,44 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
   const [editedScene, setEditedScene] = useState<SceneData>(initialScene);
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
   const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState(false);
+
+  // Update edited scene when parent scene prop changes (after successful save)
+  useEffect(() => {
+    setEditedScene({
+      ...scene,
+      quiz: scene.quiz || { questions: [] },
+      discussionPrompts: scene.discussionPrompts || [],
+      clinicalFindings: scene.clinicalFindings || [],
+      scoringCategories: scene.scoringCategories || []
+    });
+  }, [scene]);
   
   // Get video for this scene
   const sceneVideo = videos.find(v => v.scene_id === parseInt(scene.id));
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveSuccess(false);
+    setSaveError(false);
+    
     try {
-      await onSave(editedScene);
+      const success = await onSave(editedScene);
+      
+      if (success) {
+        setSaveSuccess(true);
+        // Clear success message after 3 seconds
+        setTimeout(() => setSaveSuccess(false), 3000);
+      } else {
+        setSaveError(true);
+        // Clear error message after 3 seconds
+        setTimeout(() => setSaveError(false), 3000);
+      }
+    } catch (error) {
+      console.error('Error saving scene:', error);
+      setSaveError(true);
+      setTimeout(() => setSaveError(false), 3000);
     } finally {
       setSaving(false);
     }
@@ -60,9 +90,23 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
         {/* Modal Header */}
         <div className="sticky top-0 bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6 rounded-t-2xl z-10">
           <div className="flex items-center justify-between">
-            <div>
+            <div className="flex-1">
               <h2 className="text-2xl font-bold">Edit Scene {scene.id}</h2>
               <p className="text-purple-100 text-sm mt-1">{scene.title}</p>
+              
+              {/* Success/Error Notifications */}
+              {saveSuccess && (
+                <div className="mt-3 flex items-center gap-2 bg-green-500/20 backdrop-blur-sm border border-green-300 rounded-lg px-4 py-2 animate-in fade-in slide-in-from-top-2">
+                  <CheckCircle className="w-5 h-5 text-green-100" />
+                  <span className="text-green-100 font-medium">Changes saved successfully!</span>
+                </div>
+              )}
+              {saveError && (
+                <div className="mt-3 flex items-center gap-2 bg-red-500/20 backdrop-blur-sm border border-red-300 rounded-lg px-4 py-2 animate-in fade-in slide-in-from-top-2">
+                  <X className="w-5 h-5 text-red-100" />
+                  <span className="text-red-100 font-medium">Failed to save changes. Please try again.</span>
+                </div>
+              )}
             </div>
             <button
               onClick={onClose}

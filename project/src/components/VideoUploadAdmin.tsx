@@ -283,20 +283,17 @@ const VideoUploadAdmin: React.FC = () => {
           onSave={async (updatedScene) => {
             const success = await saveSceneConfiguration(updatedScene);
             if (success) {
-              setMessage({ type: 'success', text: 'Saved' });
-                    setShowSceneEditor(false);
-                    setSelectedSceneForEdit(null);
-                    setSceneEditData({});
-            } else {
-              setMessage({ type: 'error', text: 'Failed to save. Please try again.' });
+              // Update the scene edit data with the saved changes so the editor reflects them
+              setSceneEditData(updatedScene);
+              // Don't close the modal or show top-level message - the modal handles its own notification
             }
-            clearMessage();
+            return success;
           }}
           onClose={() => {
-                    setShowSceneEditor(false);
-                    setSelectedSceneForEdit(null);
-                    setSceneEditData({});
-                  }}
+            setShowSceneEditor(false);
+            setSelectedSceneForEdit(null);
+            setSceneEditData({});
+          }}
           onExport={async (sceneId) => {
             const jsonData = await exportSceneConfiguration(sceneId);
             if (jsonData) {

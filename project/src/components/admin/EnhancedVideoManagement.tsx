@@ -62,12 +62,15 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
 
   const handleUploadSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!file || !title || !description) return;
+    if (!file || !title || !description) {
+      onMessage?.({ type: 'error', text: 'Please fill in all fields (title, description, and select a video file)' });
+      return;
+    }
     
     setUploading(true);
     try {
       await uploadVideo(file, selectedScene, title, description);
-      onMessage?.({ type: 'success', text: 'Video uploaded successfully!' });
+      onMessage?.({ type: 'success', text: `Video uploaded successfully for Scene ${selectedScene}!` });
       
       // Reset form
       setTitle('');
@@ -80,7 +83,9 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
       const fileInput = document.getElementById('video-file-input') as HTMLInputElement;
       if (fileInput) fileInput.value = '';
     } catch (error) {
-      onMessage?.({ type: 'error', text: 'Failed to upload video' });
+      const errorMsg = error instanceof Error ? error.message : 'Failed to upload video. Unknown error.';
+      console.error('Upload error in component:', error);
+      onMessage?.({ type: 'error', text: errorMsg });
     } finally {
       setUploading(false);
     }

@@ -54,21 +54,27 @@ export const useVideoData = () => {
     try {
       setError(null);
       
+      console.log('Starting upload validation:', { fileName: file.name, fileSize: file.size, fileType: file.type, sceneId });
+      
       // Validate file size (100MB limit)
       if (file.size > 52428800) { // 50MB
-        throw new Error('File size must be less than 50MB');
+        const errorMsg = `File size is ${(file.size / 1048576).toFixed(2)}MB. Maximum size is 50MB. Please compress your video.`;
+        console.error(errorMsg);
+        throw new Error(errorMsg);
       }
       
       // Validate file type
       if (!file.type.startsWith('video/')) {
-        throw new Error('Please select a valid video file');
+        const errorMsg = `Invalid file type: ${file.type}. Please select a valid video file (MP4, MOV, WebM, etc.)`;
+        console.error(errorMsg);
+        throw new Error(errorMsg);
       }
       
       // Generate unique filename
       const fileExt = file.name.split('.').pop();
       const fileName = `scene-${sceneId}-${Date.now()}.${fileExt}`;
       
-      console.log('Starting upload process:', { fileName, fileSize: file.size, sceneId });
+      console.log('✓ Validation passed. Starting upload:', { fileName, fileSize: `${(file.size / 1048576).toFixed(2)}MB`, sceneId });
       
       // Upload video file to storage
       const { data: uploadData, error: uploadError } = await supabase.storage
@@ -79,18 +85,18 @@ export const useVideoData = () => {
         });
 
       if (uploadError) {
-        console.error('Storage upload error:', uploadError);
-        throw new Error(`Upload failed: ${uploadError.message}`);
+        console.error('❌ Storage upload error:', uploadError);
+        throw new Error(`Storage upload failed: ${uploadError.message}. Check browser console for details.`);
       }
 
-      console.log('File uploaded successfully:', uploadData);
+      console.log('✓ File uploaded to storage successfully:', uploadData);
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('simulation-videos')
         .getPublicUrl(fileName);
 
-      console.log('Public URL generated:', publicUrl);
+      console.log('✓ Public URL generated:', publicUrl);
 
       // Try to insert new record first
       const { data: insertData, error: insertError } = await supabase
@@ -105,7 +111,7 @@ export const useVideoData = () => {
         .single();
 
       if (insertError) {
-        console.log('Insert failed, trying update:', insertError);
+        console.log('⚠️ Insert failed (may already exist), attempting update:', insertError.code);
         
         // If insert fails due to unique constraint, try update
         if (insertError.code === '23505') {
@@ -122,33 +128,33 @@ export const useVideoData = () => {
             .single();
 
           if (updateError) {
-            console.error('Update failed:', updateError);
+            console.error('❌ Database update failed:', updateError);
             // Clean up uploaded file
             await supabase.storage
               .from('simulation-videos')
               .remove([fileName]);
-            throw new Error(`Database update error: ${updateError.message}`);
+            throw new Error(`Database update failed: ${updateError.message}. Video was uploaded but not saved to database.`);
           }
 
-          console.log('Record updated successfully:', updateData);
+          console.log('✓ Video record updated successfully in database:', updateData);
           await fetchVideos();
           return updateData;
         } else {
-          console.error('Insert error (not conflict):', insertError);
+          console.error('❌ Database insert failed:', insertError);
           // Clean up uploaded file
           await supabase.storage
             .from('simulation-videos')
             .remove([fileName]);
-          throw new Error(`Database insert error: ${insertError.message}`);
+          throw new Error(`Database error: ${insertError.message}. Video was uploaded but not saved to database. This may be a permissions issue.`);
         }
       }
 
-      console.log('Record inserted successfully:', insertData);
+      console.log('✓ Video record inserted successfully in database:', insertData);
       await fetchVideos();
       return insertData;
     } catch (err) {
-      console.error('Upload process error:', err);
-      const errorMessage = err instanceof Error ? err.message : 'Failed to upload video';
+      console.error('❌ Upload process error:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to upload video. Unknown error occurred.';
       setError(errorMessage);
       throw new Error(errorMessage);
     }
