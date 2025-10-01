@@ -23,21 +23,34 @@ The `netlify.toml` file will automatically set:
 
 **Just click "Deploy site"!**
 
-### 4. Set Environment Variables (IMPORTANT!)
-Before the build completes, add these in Netlify:
+### 4. Set Environment Variables (⚠️ CRITICAL - DO THIS FIRST!)
+**Your app will show a blank white screen without these!**
 
 1. Go to: **Site settings** → **Environment variables**
-2. Add these two variables:
+2. Click **Add a variable**
+3. Add these two variables (exact names - case sensitive):
 
 ```
-VITE_SUPABASE_URL = https://your-project.supabase.co
-VITE_SUPABASE_ANON_KEY = your-anon-key-here
+Variable name: VITE_SUPABASE_URL
+Value: https://your-project-id.supabase.co
+
+Variable name: VITE_SUPABASE_ANON_KEY
+Value: your-anon-key-here (very long string starting with "eyJ...")
 ```
 
 **Where to find these:**
-- Go to your Supabase project
-- Navigate to **Project Settings** → **API**
-- Copy the **URL** and **anon/public key**
+1. Go to https://app.supabase.com
+2. Open your project
+3. Click **Project Settings** (gear icon) → **API** tab
+4. Copy:
+   - **Project URL** → paste into `VITE_SUPABASE_URL`
+   - **anon public key** → paste into `VITE_SUPABASE_ANON_KEY`
+
+**⚠️ Common Mistakes:**
+- ❌ Typos in variable names (must be exact: `VITE_SUPABASE_URL`)
+- ❌ Extra spaces before/after values
+- ❌ Using the wrong key (use `anon` not `service_role`)
+- ❌ Forgetting to redeploy after adding variables
 
 ### 5. Redeploy
 - After adding environment variables
