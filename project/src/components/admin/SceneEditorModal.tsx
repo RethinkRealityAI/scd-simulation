@@ -234,7 +234,7 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
               ) : (
                 <>
                   <Save className="w-5 h-5" />
-                  Save to Database
+                  Save
                 </>
               )}
             </button>

@@ -283,12 +283,12 @@ const VideoUploadAdmin: React.FC = () => {
           onSave={async (updatedScene) => {
             const success = await saveSceneConfiguration(updatedScene);
             if (success) {
-              setMessage({ type: 'success', text: `Scene ${updatedScene.id} saved successfully to database!` });
+              setMessage({ type: 'success', text: 'Saved' });
                     setShowSceneEditor(false);
                     setSelectedSceneForEdit(null);
                     setSceneEditData({});
             } else {
-              setMessage({ type: 'error', text: 'Failed to save scene configuration. Please try again.' });
+              setMessage({ type: 'error', text: 'Failed to save. Please try again.' });
             }
             clearMessage();
           }}
