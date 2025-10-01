@@ -86,6 +86,7 @@ export type Database = {
           duration_seconds?: number;
           display_order: number;
           auto_play: boolean;
+          hide_player?: boolean;
           created_at: string;
           updated_at: string;
         };
@@ -99,6 +100,7 @@ export type Database = {
           duration_seconds?: number;
           display_order?: number;
           auto_play?: boolean;
+          hide_player?: boolean;
           created_at?: string;
           updated_at?: string;
         };
@@ -112,6 +114,48 @@ export type Database = {
           duration_seconds?: number;
           display_order?: number;
           auto_play?: boolean;
+          hide_player?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+      };
+      session_data: {
+        Row: {
+          id: string;
+          session_id: string;
+          user_demographics: any;
+          responses: any;
+          category_scores: any;
+          final_score: number;
+          completion_time: number;
+          completed_scenes: number[];
+          submission_timestamp: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          session_id: string;
+          user_demographics: any;
+          responses: any;
+          category_scores: any;
+          final_score: number;
+          completion_time: number;
+          completed_scenes: number[];
+          submission_timestamp?: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          id?: string;
+          session_id?: string;
+          user_demographics?: any;
+          responses?: any;
+          category_scores?: any;
+          final_score?: number;
+          completion_time?: number;
+          completed_scenes?: number[];
+          submission_timestamp?: string;
           created_at?: string;
           updated_at?: string;
         };

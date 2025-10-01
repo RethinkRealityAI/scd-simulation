@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useVideoData } from '../hooks/useVideoData';
 import { useAudioData } from '../hooks/useAudioData';
+import { useAnalytics } from '../hooks/useAnalytics';
+import { scenes, SceneData } from '../data/scenesData';
 import { 
   Upload, 
   Video, 
@@ -17,7 +19,24 @@ import {
   FileText,
   PlayCircle,
   Settings,
-  Calendar
+  Calendar,
+  BarChart3,
+  Database,
+  Eye,
+  Download,
+  Upload as UploadIcon,
+  Activity,
+  TrendingUp,
+  Users as UsersIcon,
+  Clock,
+  Target,
+  Brain,
+  MessageSquare,
+  Shield,
+  Scale,
+  Heart,
+  ArrowRight,
+  Play
 } from 'lucide-react';
 
 const VideoUploadAdmin: React.FC = () => {
@@ -53,12 +72,25 @@ const VideoUploadAdmin: React.FC = () => {
     error: audioError
   } = useAudioData();
   
-  const [activeTab, setActiveTab] = useState<'videos' | 'audio' | 'characters'>('videos');
+  const [activeTab, setActiveTab] = useState<'videos' | 'audio' | 'characters' | 'scenes' | 'analytics' | 'settings' | 'welcome'>('videos');
   const [selectedAudioScene, setSelectedAudioScene] = useState<number>(1);
   const [showCharacterForm, setShowCharacterForm] = useState(false);
   const [showAudioForm, setShowAudioForm] = useState(false);
   const [editingAudio, setEditingAudio] = useState<string | null>(null);
   const [editingCharacter, setEditingCharacter] = useState<string | null>(null);
+  
+  // Scene management state
+  const [selectedSceneForEdit, setSelectedSceneForEdit] = useState<number | null>(null);
+  const [sceneEditData, setSceneEditData] = useState<Partial<SceneData>>({});
+  const [showSceneEditor, setShowSceneEditor] = useState(false);
+  const [sceneEditorTab, setSceneEditorTab] = useState<'edit' | 'preview'>('edit');
+  
+  // Analytics hook
+  const { analyticsData, summary, loading: analyticsLoading, error: analyticsError, refetch: refetchAnalytics } = useAnalytics();
+  
+  // Settings state
+  const [webhookUrl, setWebhookUrl] = useState('https://hook.us2.make.com/255f21cb3adzdqw4kobc89b981g1jmie');
+  const [settingsChanged, setSettingsChanged] = useState(false);
   const [characterName, setCharacterName] = useState('');
   const [characterRole, setCharacterRole] = useState('');
   const [avatarFile, setAvatarFile] = useState<File | null>(null);

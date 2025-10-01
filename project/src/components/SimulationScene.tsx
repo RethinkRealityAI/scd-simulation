@@ -6,18 +6,19 @@ import QuizComponent from './QuizComponent';
 import VideoPlayer from './VideoPlayer';
 import TabContainer from './TabContainer';
 import AudioPlayer from './AudioPlayer';
+import SBARChart from './SBARChart';
 import { useAudioData } from '../hooks/useAudioData';
 import ProgressBar from './ProgressBar';
 import { scenes } from '../data/scenesData';
 import { useVideoData } from '../hooks/useVideoData';
-import { ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Clock, RefreshCw, Share2 } from 'lucide-react';
 
 const SimulationScene: React.FC = () => {
   const { sceneId } = useParams<{ sceneId: string }>();
   const navigate = useNavigate();
   const { state, dispatch, sendDataToWebhook } = useSimulation();
   const { videos, loading: videosLoading, refetch: refetchVideos } = useVideoData();
-  const { getAudioFilesByScene, loading: audioLoading } = useAudioData();
+  const { getAudioFilesByScene } = useAudioData();
   const [sceneStartTime, setSceneStartTime] = useState(Date.now());
   const [showDiscussion, setShowDiscussion] = useState(false);
   const [sceneResponses, setSceneResponses] = useState<Array<{ questionId: string; answer: string; isCorrect: boolean }>>([]);
@@ -45,7 +46,7 @@ const SimulationScene: React.FC = () => {
   const isCurrentSceneCompleted = state.userData.completedScenes.has(currentSceneNumber);
 
   // Check if this is the completion scene (Scene 10)
-  const isCompletionScene = scene?.isCompletionScene || currentSceneNumber === 10;
+  const isCompletionScene = currentSceneNumber === 10;
 
   // Redirect to completion screen if this is scene 10
   useEffect(() => {
@@ -54,9 +55,6 @@ const SimulationScene: React.FC = () => {
       return;
     }
   }, [isCompletionScene, navigate]);
-
-  // Check if scene has discussion prompts
-  const hasDiscussionPrompts = scene?.discussionPrompts && scene.discussionPrompts.length > 0;
 
   // Handle audio auto-play sequence
   const handleAudioEnded = (currentIndex: number) => {
@@ -281,31 +279,75 @@ const SimulationScene: React.FC = () => {
         {/* Main Content - Optimized for no initial scrolling */}
         <div className="flex-1 overflow-hidden px-4 pb-12">
           <div className="h-full grid grid-cols-1 xl:grid-cols-12 gap-2">
-            {/* Left Column - Vitals Monitor - Increased width */}
-            <div className="xl:col-span-3 flex items-stretch order-last xl:order-first h-full">
-              <VitalsMonitor vitalsData={scene.vitals} className="h-full" />
-            </div>
+            {/* Left Column - Vitals Monitor - Hidden for Scene 9 */}
+            {currentSceneNumber !== 9 && (
+              <div className="flex items-stretch order-last xl:order-first h-full xl:col-span-3">
+                <VitalsMonitor vitalsData={scene.vitals} className="h-full" sceneId={sceneId} />
+              </div>
+            )}
 
-            {/* Main Content Area - Adjusted for wider vitals */}
-            <div className="xl:col-span-9 flex flex-col space-y-1 overflow-hidden h-full min-h-0">
+            {/* Main Content Area - Full width for Scene 9, consistent for all other scenes */}
+            <div className={`flex flex-col space-y-1 overflow-hidden h-full min-h-0 ${
+              currentSceneNumber === 9 ? 'xl:col-span-12' : 'xl:col-span-9'
+            }`}>
               {/* Scene Header - Compact */}
               <div className="flex-shrink-0 p-2 rounded-lg bg-white/10 backdrop-blur-xl border border-white/20">
                 <div className="flex items-center justify-between mb-1">
                   <h1 className="text-lg font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent leading-tight">
                     {scene.title}
                   </h1>
-                  <div className="flex items-center gap-2 text-cyan-400">
-                    <Clock className="w-4 h-4" />
-                    <span className="text-sm">{currentSceneNumber} of {state.userData.totalScenes}</span>
+                  <div className="flex items-center gap-2">
+                    {/* Scene 9 Action Buttons */}
+                    {currentSceneNumber === 9 && (
+                      <div className="flex items-center gap-2 mr-3">
+                        <button
+                          onClick={() => {
+                            dispatch({ type: 'RESET_SIMULATION' });
+                            navigate('/welcome');
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold text-xs
+                                   hover:from-cyan-400 hover:to-blue-400 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                        >
+                          <RefreshCw className="w-3 h-3" />
+                          Restart Simulation
+                        </button>
+                        
+                        <button
+                          onClick={() => {
+                            const results = {
+                              score: state.userData.responses.filter(r => r.isCorrect).length / state.userData.responses.length * 100,
+                              completionTime: Date.now() - state.userData.startTime,
+                              responses: state.userData.responses.length
+                            };
+                            navigator.clipboard.writeText(JSON.stringify(results, null, 2));
+                            alert('Results copied to clipboard!');
+                          }}
+                          className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-xs
+                                   hover:from-green-400 hover:to-emerald-400 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
+                        >
+                          <Share2 className="w-3 h-3" />
+                          Share Results
+                        </button>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-cyan-400">
+                      <Clock className="w-4 h-4" />
+                      <span className="text-sm">{currentSceneNumber} of {state.userData.totalScenes}</span>
+                    </div>
                   </div>
                 </div>
                 <p className="text-gray-100 text-sm leading-relaxed">{scene.description}</p>
               </div>
 
-              {/* Content Grid - Better proportions */}
-              <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-5 gap-2 min-h-0 max-h-full">
-                {/* Video and Audio Section */}
-                <div className="lg:col-span-3 flex flex-col space-y-2 h-full min-h-0 overflow-hidden">
+              {/* Content Grid - Scene 4 gets different proportions for SBAR expansion */}
+              <div className={`flex-1 overflow-hidden grid grid-cols-1 gap-2 min-h-0 max-h-full transition-all duration-700 ease-in-out ${
+                currentSceneNumber === 4 ? 'lg:grid-cols-7' : 'lg:grid-cols-5'
+              }`}>
+                {/* Video and Audio Section - Hidden for Scene 9, expanded for Scene 4 */}
+                {currentSceneNumber !== 9 && (
+                  <div className={`flex flex-col space-y-2 h-full min-h-0 overflow-hidden transition-all duration-700 ease-in-out ${
+                    currentSceneNumber === 4 ? 'lg:col-span-4' : 'lg:col-span-3'
+                  }`}>
                   {/* Video/Interactive Container - Scene 2 gets tabbed interface */}
                   {currentSceneNumber === 2 ? (
                     <TabContainer
@@ -333,6 +375,51 @@ const SimulationScene: React.FC = () => {
                               console.log('Iframe loaded successfully');
                             }}
                           />
+                        ) : currentSceneNumber === 8 ? (
+                          // Show SBAR Chart for Scene 8
+                          (() => {
+                            // Get SBAR data from Scene 4 responses
+                            const sbarResponse = state.userData.responses.find(r => 
+                              r.sceneId === '4' && r.questionId === 'action_4'
+                            );
+                            
+                            let sbarData: {
+                              situation: string[];
+                              background: string[];
+                              assessment: string[];
+                              recommendation: string[];
+                            } = {
+                              situation: [],
+                              background: [],
+                              assessment: [],
+                              recommendation: []
+                            };
+                            
+                            if (sbarResponse) {
+                              try {
+                                // Parse SBAR response format: "SITUATION: item1, item2\nBACKGROUND: ..."
+                                const sections = sbarResponse.answer.split('\n');
+                                sections.forEach(section => {
+                                  const [category, items] = section.split(': ');
+                                  if (category && items) {
+                                    const categoryKey = category.toLowerCase() as keyof typeof sbarData;
+                                    if (sbarData.hasOwnProperty(categoryKey)) {
+                                      sbarData[categoryKey] = items.split(', ').filter(item => item.trim());
+                                    }
+                                  }
+                                });
+                              } catch (error) {
+                                console.error('Error parsing SBAR data:', error);
+                              }
+                            }
+                            
+                            return (
+                              <SBARChart
+                                data={sbarData}
+                                readOnly={true}
+                              />
+                            );
+                          })()
                         ) : videosLoading || !videoUrl ? (
                           <div className="flex items-center justify-center h-full">
                             <div className="text-white">
@@ -391,16 +478,21 @@ const SimulationScene: React.FC = () => {
                               onPause={() => setCurrentPlayingAudio(null)}
                               onEnded={() => handleAudioEnded(index)}
                               className="pill"
+                              isHidden={audioFile.hide_player || false}
                             />
                           ))}
                       </div>
                     </div>
                   )}
                 </div>
+                )}
 
-                {/* Quiz Section - Fixed height with internal scrolling */}
+                {/* Quiz Section - Full width for Scene 9, reduced width for Scene 4 */}
                 {(scene.quiz || scene.actionPrompt) && (
-                  <div className="lg:col-span-2 h-full min-h-0 max-h-full overflow-hidden">
+                  <div className={`h-full min-h-0 max-h-full overflow-hidden transition-all duration-700 ease-in-out ${
+                    currentSceneNumber === 9 ? 'lg:col-span-5' :
+                    currentSceneNumber === 4 ? 'lg:col-span-3' : 'lg:col-span-2'
+                  }`}>
                     {/* Determine if scene has interactive options */}
                     {(() => {
                       const hasInteractiveOptions = !!(

@@ -13,6 +13,7 @@ interface AudioPlayerProps {
   onPause?: () => void;
   onEnded?: () => void;
   className?: string;
+  isHidden?: boolean;
 }
 
 const AudioPlayer: React.FC<AudioPlayerProps> = ({
@@ -26,7 +27,8 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
   onPlay,
   onPause,
   onEnded,
-  className = ''
+  className = '',
+  isHidden = false
 }) => {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -137,6 +139,16 @@ const AudioPlayer: React.FC<AudioPlayerProps> = ({
       setIsExpanded(!isExpanded);
     }
   };
+
+  // If hidden, only render the audio element
+  if (isHidden) {
+    return (
+      <audio ref={audioRef} preload="metadata" loop={false} style={{ display: 'none' }}>
+        <source src={audioUrl} />
+        Your browser does not support the audio element.
+      </audio>
+    );
+  }
 
   return (
     <div className={`bg-white/10 backdrop-blur-xl transition-all duration-300 ${

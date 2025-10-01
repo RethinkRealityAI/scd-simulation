@@ -20,6 +20,7 @@ export interface AudioFile {
   duration_seconds?: number;
   display_order: number;
   auto_play: boolean;
+  hide_player?: boolean;
   character?: Character;
 }
 
@@ -146,6 +147,7 @@ export const useAudioData = () => {
     subtitles: string,
     audioFile: File,
     autoPlay: boolean = false,
+    hidePlayer: boolean = false,
     displayOrder: number = 0
   ): Promise<AudioFile> => {
     const audioUrl = await uploadAudio(audioFile, title);
@@ -159,7 +161,8 @@ export const useAudioData = () => {
         audio_description: subtitles,
         audio_url: audioUrl,
         display_order: displayOrder,
-        auto_play: autoPlay
+        auto_play: autoPlay,
+        hide_player: hidePlayer
       })
       .select()
       .single();
@@ -176,6 +179,7 @@ export const useAudioData = () => {
     subtitles: string,
     audioFile?: File,
     autoPlay: boolean = false,
+    hidePlayer: boolean = false,
     displayOrder: number = 0
   ): Promise<AudioFile> => {
     let audioUrl = '';
@@ -189,6 +193,7 @@ export const useAudioData = () => {
       audio_description: subtitles,
       display_order: displayOrder,
       auto_play: autoPlay,
+      hide_player: hidePlayer,
       updated_at: new Date().toISOString()
     };
 

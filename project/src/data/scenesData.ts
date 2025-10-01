@@ -49,6 +49,7 @@ export const scenes: SceneData[] = [
       respiratoryRate: 24,
       oxygenSaturation: 98,
       temperature: 37.0,
+      painLevel: 10,
       isAlarmOn: true,
       patientName: 'Johnson, Tobiloba "Tobi"',
       age: 15,
@@ -57,16 +58,16 @@ export const scenes: SceneData[] = [
       procedureTime: ''
     },
     actionPrompt: {
-      type: 'multi-select',
+      type: 'action-selection',
       title: 'Select initial actions for Tobi\'s care:',
       content: 'Choose the most appropriate initial interventions for a 15-year-old with sickle cell disease presenting with severe pain.',
       options: [
-        'Delay meds and observe',
-        'Begin focused assessment, establish IV, draw labs',
-        'Administer oral meds and discharge'
+        'A. Delay meds and observe',
+        'B. Begin focused assessment, establish IV, draw labs',
+        'C. Administer oral meds and discharge'
       ],
-      correctAnswers: ['Begin focused assessment, establish IV, draw labs'],
-      explanation: 'Early aggressive management of VOC is key. Delay can worsen outcomes and risk ACS. Beginning focused assessment, establishing IV access, and drawing labs allows for prompt treatment and monitoring.'
+      correctAnswers: ['B. Begin focused assessment, establish IV, draw labs'],
+      explanation: 'Early aggressive management of VOC is key. Delay can worsen outcomes and risk ACS.'
     },
     discussionPrompts: [
       'What might the consequences of selecting "Delay meds and observe" or "Administer oral meds and discharge" be?',
@@ -109,7 +110,7 @@ export const scenes: SceneData[] = [
         'C. "Let\'s wait and see if it gets worse."'
       ],
       correctAnswers: ['B. "I understand your concern. We\'re taking his pain seriously."'],
-      explanation: 'Cultural humility involves affirming parental concern and demonstrating commitment to pain relief. This response validates the family\'s experience and builds trust.'
+      explanation: 'Cultural humility involves affirming parental concern and demonstrating commitment to pain relief.'
     },
     discussionPrompts: [
       'Why might parents of children with SCD feel the need to advocate strongly?',
@@ -138,32 +139,25 @@ export const scenes: SceneData[] = [
     },
     actionPrompt: {
       type: 'multi-select',
-      title: 'Select appropriate interventions for Tobi\'s continued care:',
-      content: 'Choose all interventions that should be implemented for optimal hydration and monitoring.',
+      title: 'Prompt: Choose initial interventions',
+      content: 'Select the appropriate initial interventions for Tobi\'s continued care.',
       options: [
-        'Maintain IV fluids at 1.5-2.0 times maintenance',
-        'Monitor intake and output closely',
-        'Assess for signs of fluid overload',
-        'Continue pain reassessment every 30 minutes',
-        'Restrict all oral fluids',
-        'Discontinue IV access'
+        'Administer morphine IV within 30 minutes (0.1 mg/kg)',
+        'Start IV hydration (1.5x maintenance fluids)',
+        'Order CBC, retic count, CMP',
+        'Continuous pulse oximetry',
+        'Restrict all oral fluids'
       ],
       correctAnswers: [
-        'Maintain IV fluids at 1.5-2.0 times maintenance',
-        'Monitor intake and output closely',
-        'Assess for signs of fluid overload',
-        'Continue pain reassessment every 30 minutes'
+        'Administer morphine IV within 30 minutes (0.1 mg/kg)',
+        'Start IV hydration (1.5x maintenance fluids)'
       ],
-      explanation: 'Adequate hydration is crucial in sickle cell crisis to help prevent further sickling and improve blood flow. Typically 1.5-2.0 times maintenance fluids are recommended unless contraindicated by cardiac or renal conditions. Close monitoring prevents complications while ensuring therapeutic benefit.'
-    },
-    discussionPrompts: [
-      'Review the SBAR handoff described in the script. What makes it an effective and safe tool for interprofessional communication?',
-      'The Charge Nurse, Monique Allen, is described as "calm, attentive, and authoritative". How does a charge nurse\'s leadership style influence team communication and overall patient care in a busy ED?'
-    ]
+      explanation: 'Effective analgesia and hydration are the cornerstones of VOC management (CMAJ 2016, NHLBI 2014).'
+    }
   },
   {
     id: '4',
-    title: 'Scene 4: Team Communication',
+    title: 'Team Communication',
     description: 'Tobi\'s condition is stabilizing. The team needs to conduct effective SBAR handoff communication to ensure continuity of care and address family concerns.',
     videoUrl: '',
     scoringCategories: ['communication'],
@@ -185,12 +179,8 @@ export const scenes: SceneData[] = [
       type: 'sbar',
       title: 'Conduct SBAR Handoff',
       content: 'Prepare a comprehensive SBAR handoff for the incoming team. Include all relevant clinical information and family concerns.',
-      explanation: 'Effective SBAR communication ensures continuity of care and addresses both clinical needs and family concerns. This structured approach improves patient safety and team coordination.'
-    },
-    discussionPrompts: [
-      'Review the SBAR handoff described in the script. What makes it an effective and safe tool for interprofessional communication?',
-      'The Charge Nurse, Monique Allen, is described as "calm, attentive, and authoritative". How does a charge nurse\'s leadership style influence team communication and overall patient care in a busy ED?'
-    ]
+      explanation: 'Clear interprofessional communication improves coordination and care efficiency.'
+    }
   },
   {
     id: '5',
@@ -199,39 +189,32 @@ export const scenes: SceneData[] = [
     videoUrl: '',
     scoringCategories: ['timelyPainManagement', 'clinicalJudgment'],
     vitals: {
-      heartRate: 110,
+      heartRate: 128,
       systolic: 130,
-      diastolic: 85,
+      diastolic: 80,
       respiratoryRate: 26,
       oxygenSaturation: 94,
       temperature: 38.1,
-      isAlarmOn: true,
+      painLevel: 9,
+      isAlarmOn: false,
       patientName: 'Johnson, Tobiloba "Tobi"',
       age: 15,
       bedNumber: '008',
       mrn: '14839412',
       procedureTime: ''
     },
-    quiz: {
-      questions: [
-        {
-          id: 'bias_response_6',
-          type: 'multiple-choice',
-          question: 'How do you respond to a team member who suggests Tobi might be exaggerating his pain?',
-          options: [
-            'Ignore the comment',
-            'Address it privately and reinforce SCD pain protocols',
-            'Agree silently with the concern'
-          ],
-          correctAnswer: 'Address it privately and reinforce SCD pain protocols',
-          explanation: 'Addressing bias is critical. Studies show SCD patients often face stigma and inadequate analgesia. It\'s important to address these concerns privately while reinforcing evidence-based pain management protocols.'
-        }
-      ]
-    },
-    discussionPrompts: [
-      'How can healthcare providers balance concerns around opioid prescribing with adequate pain treatment?',
-      'What do we know about the actual pain severity of VOCs?'
-    ]
+    actionPrompt: {
+      type: 'multi-select',
+      title: 'Prompt: Next action?',
+      content: 'Tobi\'s pain persists despite initial opioid treatment. What is your next course of action?',
+      options: [
+        'Repeat opioid',
+        'Reassess labs',
+        'Consider consult to hematology'
+      ],
+      correctAnswers: ['Consider consult to hematology'],
+      explanation: 'Persistent pain despite opioids requires reevaluation for ACS or complications'
+    }
   },
   {
     id: '6',
@@ -258,14 +241,14 @@ export const scenes: SceneData[] = [
         {
           id: 'bias_response_6',
           type: 'multiple-choice',
-          question: 'How do you respond to a team member who suggests Tobi might be exaggerating his pain?',
+          question: 'How do you respond to a team member who suggests Toby might be exaggerating his pain for more meds?',
           options: [
-            'Ignore the comment',
-            'Address it privately and reinforce SCD pain protocols',
-            'Agree silently with the concern'
+            'A. Ignore it',
+            'B. Address privately and reinforce SCD pain protocols',
+            'C. Agree silently'
           ],
-          correctAnswer: 'Address it privately and reinforce SCD pain protocols',
-          explanation: 'Addressing bias is critical. Studies show SCD patients often face stigma and inadequate analgesia. It\'s important to address these concerns privately while reinforcing evidence-based pain management protocols.'
+          correctAnswer: 'B. Address privately and reinforce SCD pain protocols',
+          explanation: 'Addressing bias is critical. Studies show SCD patients often face stigma and inadequate analgesia.'
         }
       ]
     },
@@ -296,21 +279,21 @@ export const scenes: SceneData[] = [
     },
     actionPrompt: {
       type: 'multi-select',
-      title: 'Select appropriate interventions for suspected acute chest syndrome:',
-      content: 'Tobi is showing signs of acute chest syndrome. Choose all appropriate interventions.',
+      title: 'Prompt: What do you suspect?',
+      content: 'Tobi develops chest pain and shortness of breath with decreased oxygen saturation. Select your suspicion and appropriate orders:',
       options: [
-        'Chest X-ray',
-        'O2 via nasal cannula',
-        'Notify hematology',
-        'Continue current pain management only',
-        'Discharge with oral antibiotics'
-      ],
-      correctAnswers: [
+        'Acute Chest Syndrome',
         'Chest X-ray',
         'O2 via nasal cannula',
         'Notify hematology'
       ],
-      explanation: 'ACS is life-threatening. Early signs include desaturation and pain. Escalation is vital. Chest X-ray confirms diagnosis, oxygen therapy maintains oxygenation, and hematology consultation ensures expert management.'
+      correctAnswers: [
+        'Acute Chest Syndrome',
+        'Chest X-ray',
+        'O2 via nasal cannula',
+        'Notify hematology'
+      ],
+      explanation: 'ACS is life-threatening. Early signs include desaturation and pain. Escalation is vital (Brandow & Liem, 2011).'
     }
   },
   {
@@ -335,23 +318,21 @@ export const scenes: SceneData[] = [
     },
     actionPrompt: {
       type: 'multi-select',
-      title: 'Select appropriate admission planning considerations:',
-      content: 'Tobi will be admitted to the pediatric unit. Choose all relevant planning considerations for his continued care.',
+      title: 'Prompt: Select all that apply:',
+      content: 'Tobi\'s condition is stabilizing. Plan for his continued care and admission.',
       options: [
-        'Coordinate with pediatric hematology team',
-        'Ensure pain management protocol continuity',
-        'Plan for family education and support',
-        'Monitor for complications of acute chest syndrome',
-        'Discharge immediately to reduce hospital exposure',
-        'Restrict family visitation'
+        'Admit under pediatric hematology',
+        'Continue IV opioids and fluids',
+        'Monitor vitals and SpO2 continuously',
+        'Educate family on hydroxyurea compliance and stress reduction'
       ],
       correctAnswers: [
-        'Coordinate with pediatric hematology team',
-        'Ensure pain management protocol continuity',
-        'Plan for family education and support',
-        'Monitor for complications of acute chest syndrome'
+        'Admit under pediatric hematology',
+        'Continue IV opioids and fluids',
+        'Monitor vitals and SpO2 continuously',
+        'Educate family on hydroxyurea compliance and stress reduction'
       ],
-      explanation: 'Comprehensive admission planning includes specialist consultation, pain management continuity, family support, and ongoing monitoring. These elements ensure optimal care coordination and patient outcomes.'
+      explanation: 'Comprehensive admission planning includes specialist consultation, pain management continuity, continuous monitoring, and family education for long-term management.'
     },
   },
   {

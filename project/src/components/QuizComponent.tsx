@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { CheckCircle, XCircle, ArrowRight, Sparkles, MessageCircle, Check, ChevronRight, Clipboard, Users, Activity } from 'lucide-react';
+import { CheckCircle, XCircle, ArrowRight, Sparkles, MessageCircle, Check, ChevronRight, Clipboard, Users, Activity, X } from 'lucide-react';
 import SBARWordBank from './SBARWordBank';
+import CompletionResults from './CompletionResults';
+import ResourceLinks from './ResourceLinks';
 import { scenes } from '../data/scenesData';
 
 export interface QuizQuestion {
@@ -99,11 +101,19 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
       const existingActionResponse = sceneResponses.find(r => r.questionId === `action_${sceneId}`);
       if (existingActionResponse) {
         setActionSubmitted(true);
-        setActionResponse(existingActionResponse.answer);
+        // For multi-select questions, convert string back to array
+        if (actionPrompt?.type === 'multi-select' && typeof existingActionResponse.answer === 'string') {
+          setActionResponse(existingActionResponse.answer.split(', '));
+        } else {
+          setActionResponse(existingActionResponse.answer);
+        }
+        // For completed scenes, don't show complete button
+        setShouldShowCompleteButton(isSceneCompleted ? false : !hasDiscussionPrompts);
         console.log('Found existing action response:', existingActionResponse);
       } else {
         setActionSubmitted(false);
         setActionResponse('');
+        setShouldShowCompleteButton(false);
         console.log('No existing action response found');
       }
     }
@@ -147,6 +157,7 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
       
       setActionSubmitted(true);
       const isCorrect = actionPrompt.correctAnswers ? 
+        actionResponse.length === actionPrompt.correctAnswers.length &&
         actionResponse.every(ans => actionPrompt.correctAnswers!.includes(ans)) &&
         actionPrompt.correctAnswers.every(ans => actionResponse.includes(ans)) : true;
       
@@ -175,6 +186,7 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
       // Only show complete button if scene is not already completed
       if (!isSceneCompleted) {
         setShouldShowCompleteButton(true);
+        console.log('Setting shouldShowCompleteButton to true for multi-select scene', sceneId);
       }
     } else {
       if (!actionResponse) return;
@@ -193,6 +205,7 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
       // Only show complete button if scene is not already completed
       if (!isSceneCompleted) {
         setShouldShowCompleteButton(true);
+        console.log('Setting shouldShowCompleteButton to true for action-selection scene', sceneId);
       }
     }
   };
@@ -351,10 +364,99 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
       </div>
 
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto space-y-3 mb-3">
-        {/* Action Prompt Content */}
-        {actionPrompt && !actionSubmitted && (
+      <div className="flex-1 overflow-hidden mb-3">
+        {/* Scene 9 Two-Column Layout */}
+        {sceneId === '9' ? (
+          <div className="grid grid-cols-1 lg:grid-cols-5 gap-4 h-full">
+            {/* Left Column - Session Statistics (60%) */}
+            <div className="lg:col-span-3 overflow-y-auto bg-slate-900/20 rounded-xl p-3">
+              <CompletionResults />
+            </div>
+            
+            {/* Right Column - Discussion & Resources (40%) */}
+            <div className="lg:col-span-2 flex flex-col gap-3 min-h-0">
+              {/* Discussion Prompt Section */}
+              <div className="flex-1 min-h-[300px] overflow-y-auto">
+                <div className="p-3 rounded-xl bg-blue-500/10 backdrop-blur-xl border border-blue-400/20 h-full flex flex-col">
+                  <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
+                    <MessageCircle className="w-4 h-4 text-blue-400" />
+                    Reflection & Discussion
+                  </h3>
+                  
+                  {/* Discussion Prompt */}
+                  <div className="flex-1 space-y-3 mb-3">
+                    {(() => {
+                      const sceneNumber = parseInt(sceneId);
+                      const scene = scenes[sceneNumber - 1];
+                      return scene?.discussionPrompts && scene.discussionPrompts.length > 0 ? (
+                        scene.discussionPrompts.map((prompt, index) => (
+                        <div key={index} className="space-y-2">
+                          <div className="p-3 rounded-lg bg-slate-800/30 border border-slate-700/30">
+                            <p className="text-sm text-gray-300 leading-relaxed">
+                              {prompt}
+                            </p>
+                          </div>
+                          
+                          <textarea
+                            placeholder="Share your thoughts and reflections..."
+                            className="w-full p-3 rounded-lg bg-slate-800/50 border border-slate-600/30 text-white placeholder-gray-400 text-sm
+                                     focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 resize-none"
+                            rows={4}
+                            onChange={(e) => {
+                              const response = {
+                                questionId: `discussion_${sceneId}_${index}`,
+                                answer: e.target.value,
+                                isCorrect: true
+                              };
+                              onAnswered([response]);
+                            }}
+                          />
+                        </div>
+                      ))
+                    ) : (
+                      <div className="p-3 rounded-lg bg-slate-800/30 border border-slate-700/30">
+                        <p className="text-sm text-gray-300 leading-relaxed">
+                          Take a moment to reflect on your experience with this sickle cell crisis simulation.
+                        </p>
+                        <textarea
+                          placeholder="Share your thoughts and reflections..."
+                          className="w-full mt-3 p-3 rounded-lg bg-slate-800/50 border border-slate-600/30 text-white placeholder-gray-400 text-sm
+                                   focus:outline-none focus:ring-2 focus:ring-blue-500/50 focus:border-blue-500/50 resize-none"
+                          rows={6}
+                        />
+                      </div>
+                    );
+                    })()}
+                  </div>
+                  
+                  {/* Submit Button - Inside Discussion Prompt */}
+                  <div className="flex-shrink-0">
+                    <button
+                      onClick={onCompleteScene}
+                      className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-sm
+                               hover:from-green-400 hover:to-emerald-400 transition-all duration-200 
+                               flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+                    >
+                      <Check className="w-3 h-3" />
+                      Complete Reflection
+                    </button>
+                  </div>
+                </div>
+              </div>
+              
+              {/* Resource Links Section */}
+              <div className="flex-shrink-0">
+                <ResourceLinks />
+              </div>
+            </div>
+          </div>
+        ) : (
           <div className="space-y-3">
+            {/* Regular Scene Content */}
+            
+            {/* Action Prompt Content */}
+            {actionPrompt && !actionSubmitted && (
+              <div className="space-y-3">
             {/* Interactive SBAR Component */}
             {actionPrompt.type === 'sbar' ? (
               <SBARWordBank
@@ -466,28 +568,157 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
         )}
 
         {/* Action Feedback */}
-        {actionPrompt && actionSubmitted && actionPrompt.explanation && (
-          <div className="p-3 rounded-lg border-l-4 bg-green-500/20 border-green-400 shadow-lg shadow-green-500/20 animate-fade-in">
-            <div className="flex items-center gap-2 mb-2">
-              <Sparkles className="w-3 h-3 text-green-400" />
-              <CheckCircle className="w-4 h-4 text-green-400" />
-              <span className="font-bold text-sm text-green-400">Completed!</span>
-            </div>
-            <div className="bg-slate-800/50 rounded-lg p-3">
-              <p className="text-white font-medium mb-1 text-xs">Summary:</p>
-              <p className="text-gray-200 leading-relaxed text-xs">{actionPrompt.explanation}</p>
-            </div>
-          </div>
-        )}
+        {actionPrompt && actionSubmitted && (
+          <div>
+            {/* Show options with correct/incorrect highlighting after submission */}
+            {(actionPrompt.type === 'action-selection' || actionPrompt.type === 'multi-select') && actionPrompt.options && (
+              <div className="space-y-2 mb-3">
+                {actionPrompt.options.map((option, index) => {
+                  const isCorrectOption = actionPrompt.correctAnswers?.includes(option);
+                  const wasSelected = actionPrompt.type === 'multi-select' 
+                    ? Array.isArray(actionResponse) 
+                      ? actionResponse.includes(option)
+                      : typeof actionResponse === 'string' && actionResponse.split(', ').includes(option)
+                    : actionResponse === option;
+                  
+                  let buttonClass = "w-full p-3 text-left rounded-lg border transition-all duration-200 text-sm pointer-events-none ";
+                  
+                  if (isCorrectOption) {
+                    buttonClass += "bg-green-500/20 border-green-400 text-green-100";
+                  } else if (wasSelected && !isCorrectOption) {
+                    buttonClass += "bg-red-500/20 border-red-400 text-red-100";
+                  } else {
+                    buttonClass += "bg-slate-700/30 border-slate-600 text-gray-400";
+                  }
+                  
+                  return (
+                    <div key={index} className={buttonClass}>
+                      <div className="flex items-center gap-2">
+                        {actionPrompt.type === 'multi-select' && (
+                          <div className={`w-4 h-4 rounded border transition-all ${
+                            isCorrectOption ? 'bg-green-400 border-green-400' : 
+                            wasSelected ? 'bg-red-400 border-red-400' : 'border-slate-500'
+                          }`}>
+                            {(isCorrectOption || wasSelected) && <Check className="w-3 h-3 text-slate-900" />}
+                          </div>
+                        )}
+                        <span className="leading-relaxed">{option}</span>
+                        {isCorrectOption && (
+                          <CheckCircle className="w-4 h-4 text-green-400 ml-auto" />
+                        )}
+                        {wasSelected && !isCorrectOption && (
+                          <X className="w-4 h-4 text-red-400 ml-auto" />
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+            
+            {/* Feedback message */}
+            {actionPrompt.explanation && (
+              <div className={`p-3 rounded-lg border-l-4 shadow-lg animate-fade-in ${
+                (() => {
+                  if (actionPrompt.type === 'sbar' || actionPrompt.type === 'reflection') {
+                    return 'bg-green-500/20 border-green-400 shadow-green-500/20';
+                  }
+                  
+                  // Check if answer was correct
+                  const isCorrect = actionPrompt.type === 'multi-select' 
+                    ? Array.isArray(actionResponse) && Array.isArray(actionPrompt.correctAnswers) &&
+                      actionResponse.length === actionPrompt.correctAnswers.length &&
+                      actionResponse.every(ans => actionPrompt.correctAnswers!.includes(ans)) &&
+                      actionPrompt.correctAnswers.every(ans => actionResponse.includes(ans))
+                    : actionPrompt.correctAnswers?.includes(actionResponse as string);
+                  
+                  return isCorrect 
+                    ? 'bg-green-500/20 border-green-400 shadow-green-500/20'
+                    : 'bg-red-500/20 border-red-400 shadow-red-500/20';
+                })()
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <Sparkles className={`w-3 h-3 ${
+                    (() => {
+                      if (actionPrompt.type === 'sbar' || actionPrompt.type === 'reflection') {
+                        return 'text-green-400';
+                      }
+                      
+                      const isCorrect = actionPrompt.type === 'multi-select' 
+                        ? Array.isArray(actionResponse) && Array.isArray(actionPrompt.correctAnswers) &&
+                          actionResponse.length === actionPrompt.correctAnswers.length &&
+                          actionResponse.every(ans => actionPrompt.correctAnswers!.includes(ans)) &&
+                          actionPrompt.correctAnswers.every(ans => actionResponse.includes(ans))
+                        : actionPrompt.correctAnswers?.includes(actionResponse as string);
+                      
+                      return isCorrect ? 'text-green-400' : 'text-red-400';
+                    })()
+                  }`} />
+                  {(() => {
+                    if (actionPrompt.type === 'sbar' || actionPrompt.type === 'reflection') {
+                      return <CheckCircle className="w-4 h-4 text-green-400" />;
+                    }
+                    
+                    const isCorrect = actionPrompt.type === 'multi-select' 
+                      ? Array.isArray(actionResponse) && Array.isArray(actionPrompt.correctAnswers) &&
+                        actionResponse.length === actionPrompt.correctAnswers.length &&
+                        actionResponse.every(ans => actionPrompt.correctAnswers!.includes(ans)) &&
+                        actionPrompt.correctAnswers.every(ans => actionResponse.includes(ans))
+                      : actionPrompt.correctAnswers?.includes(actionResponse as string);
+                    
+                    return isCorrect 
+                      ? <CheckCircle className="w-4 h-4 text-green-400" />
+                      : <X className="w-4 h-4 text-red-400" />;
+                  })()}
+                  <span className={`font-bold text-sm ${
+                    (() => {
+                      if (actionPrompt.type === 'sbar' || actionPrompt.type === 'reflection') {
+                        return 'text-green-400';
+                      }
+                      
+                      const isCorrect = actionPrompt.type === 'multi-select' 
+                        ? Array.isArray(actionResponse) && Array.isArray(actionPrompt.correctAnswers) &&
+                          actionResponse.length === actionPrompt.correctAnswers.length &&
+                          actionResponse.every(ans => actionPrompt.correctAnswers!.includes(ans)) &&
+                          actionPrompt.correctAnswers.every(ans => actionResponse.includes(ans))
+                        : actionPrompt.correctAnswers?.includes(actionResponse as string);
+                      
+                      return isCorrect ? 'text-green-400' : 'text-red-400';
+                    })()
+                  }`}>
+                    {(() => {
+                      if (actionPrompt.type === 'sbar' || actionPrompt.type === 'reflection') {
+                        return 'Completed!';
+                      }
+                      
+                      const isCorrect = actionPrompt.type === 'multi-select' 
+                        ? Array.isArray(actionResponse) && Array.isArray(actionPrompt.correctAnswers) &&
+                          actionResponse.length === actionPrompt.correctAnswers.length &&
+                          actionResponse.every(ans => actionPrompt.correctAnswers!.includes(ans)) &&
+                          actionPrompt.correctAnswers.every(ans => actionResponse.includes(ans))
+                        : actionPrompt.correctAnswers?.includes(actionResponse as string);
+                      
+                      return isCorrect ? 'Correct!' : 'Incorrect';
+                    })()}
+                  </span>
+                </div>
+                <div className="bg-slate-800/50 rounded-lg p-3">
+                  <p className="text-white font-medium mb-1 text-xs">Feedback:</p>
+                  <p className="text-gray-200 leading-relaxed text-xs">{actionPrompt.explanation}</p>
+                </div>
+              </div>
+            )}
+              </div>
+            )}
 
-        {/* Quiz Questions */}
-        {quiz && currentQuestion && (
-          <>
-            <h4 className="text-sm font-medium text-white leading-relaxed">
-              {currentQuestion.question}
-            </h4>
+            {/* Quiz Questions */}
+            {quiz && currentQuestion && (
+              <>
+                <h4 className="text-sm font-medium text-white leading-relaxed">
+                  {currentQuestion.question}
+                </h4>
 
-            {currentQuestion.type === 'multiple-choice' && currentQuestion.options && (
+                {currentQuestion.type === 'multiple-choice' && currentQuestion.options && (
               <div className="space-y-2">
                 {currentQuestion.options.map((option, index) => {
                   const isSelected = userAnswers[currentQuestion.id] === option;
@@ -599,11 +830,11 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
             {/* Quiz Feedback Section */}
             {quiz && currentQuestion && showFeedback[currentQuestion.id] && (
               <div className={`p-3 rounded-lg border-l-4 animate-fade-in ${
-                Array.isArray(currentQuestion.correctAnswer) ?
+                (Array.isArray(currentQuestion.correctAnswer) ?
                   (Array.isArray(userAnswers[currentQuestion.id]) && 
                    (userAnswers[currentQuestion.id] as string[]).every(ans => (currentQuestion.correctAnswer as string[]).includes(ans)) &&
                    (currentQuestion.correctAnswer as string[]).every(ans => (userAnswers[currentQuestion.id] as string[]).includes(ans)))
-                  : userAnswers[currentQuestion.id] === currentQuestion.correctAnswer
+                  : userAnswers[currentQuestion.id] === currentQuestion.correctAnswer)
                   ? 'bg-green-500/20 border-green-400 shadow-lg shadow-green-500/20' 
                   : 'bg-red-500/20 border-red-400 shadow-lg shadow-red-500/20'
               }`}>
@@ -655,7 +886,9 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
                 </div>
               </div>
             )}
-          </>
+              </>
+            )}
+          </div>
         )}
       </div>
 
@@ -710,7 +943,17 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
         {!isSceneCompleted && shouldShowCompleteButton && (
           <>
             {/* For scenes WITHOUT discussion prompts - show after assessment */}
-            {!hasDiscussionPrompts && (allQuestionsSubmitted || actionSubmitted || allQuestionsAnswered) && (
+            {!hasDiscussionPrompts && (allQuestionsSubmitted || actionSubmitted || allQuestionsAnswered) && (() => {
+              console.log('Showing complete button for scene', sceneId, {
+                isSceneCompleted,
+                shouldShowCompleteButton,
+                hasDiscussionPrompts,
+                allQuestionsSubmitted,
+                actionSubmitted,
+                allQuestionsAnswered
+              });
+              return true;
+            })() && (
               <button
                 onClick={onCompleteScene}
                 className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-sm
