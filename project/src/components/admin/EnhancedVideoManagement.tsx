@@ -144,7 +144,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
   return (
     <div className="h-full flex gap-4">
       {/* Left Column - Controls & List */}
-      <div className="w-1/2 flex flex-col gap-4 overflow-y-auto pr-2">
+      <div className="w-2/5 flex flex-col gap-4 overflow-y-auto pr-2">
         {/* Scene Quick Navigation */}
         <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg shadow-sm border border-blue-100 p-3 flex-shrink-0">
           <div className="flex items-center justify-between mb-2">
@@ -280,7 +280,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
               Uploaded Videos ({videos.length})
             </h2>
           </div>
-          <div className="flex-1 overflow-y-auto p-5">
+          <div className="flex-1 overflow-y-auto p-5 pb-8">
             {loading ? (
               <div className="text-center py-12">
                 <div className="w-10 h-10 border-3 border-blue-600/30 border-t-blue-600 rounded-full animate-spin mx-auto mb-4" />

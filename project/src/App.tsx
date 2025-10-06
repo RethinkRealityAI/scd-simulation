@@ -3,23 +3,45 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import WelcomeScreen from './components/WelcomeScreen';
 import SimulationScene from './components/SimulationScene';
 import ResultsScreen from './components/ResultsScreen';
-import VideoUploadAdmin from './components/VideoUploadAdmin';
+import AdminDashboard from './components/admin/AdminDashboard';
+import InstanceSimulation from './components/InstanceSimulation';
 import { SimulationProvider } from './context/SimulationContext';
+import { InstanceSimulationProvider } from './context/InstanceSimulationContext';
 
 function App() {
   return (
-    <SimulationProvider>
-      <Router>
-        <div className="h-screen overflow-hidden bg-gradient-to-br from-slate-900 via-purple-900 to-slate-800">
-          <Routes>
-            <Route path="/" element={<WelcomeScreen />} />
-            <Route path="/scene/:sceneId" element={<SimulationScene />} />
-            <Route path="/completion" element={<ResultsScreen />} />
-            <Route path="/admin/videos" element={<VideoUploadAdmin />} />
-          </Routes>
-        </div>
-      </Router>
-    </SimulationProvider>
+    <Router>
+      <div className="h-screen overflow-hidden">
+        <Routes>
+          {/* Main simulation routes */}
+          <Route path="/" element={
+            <SimulationProvider>
+              <WelcomeScreen />
+            </SimulationProvider>
+          } />
+          <Route path="/scene/:sceneId" element={
+            <SimulationProvider>
+              <SimulationScene />
+            </SimulationProvider>
+          } />
+          <Route path="/completion" element={
+            <SimulationProvider>
+              <ResultsScreen />
+            </SimulationProvider>
+          } />
+          
+          {/* Instance-specific simulation routes */}
+          <Route path="/sim/:institutionId/*" element={
+            <InstanceSimulationProvider>
+              <InstanceSimulation />
+            </InstanceSimulationProvider>
+          } />
+          
+          {/* Admin routes */}
+          <Route path="/admin" element={<AdminDashboard />} />
+        </Routes>
+      </div>
+    </Router>
   );
 }
 

@@ -64,7 +64,7 @@ const initialState: SimulationState = {
     startTime: 0,
     responses: [],
     currentScene: 0,
-    totalScenes: 9, // 9 main scenes + 1 completion scene (Scene 10)
+    totalScenes: 10, // Dynamic total scenes based on scene order
     completedScenes: new Set(),
     categoryScores: [],
   },

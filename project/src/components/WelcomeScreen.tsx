@@ -103,11 +103,11 @@ const WelcomeScreen: React.FC = () => {
 
         <div className="relative z-10 h-full flex">
           {/* Left Side - Content */}
-          <div className="flex-1 flex items-center justify-center p-8">
+          <div className="flex-1 flex items-center justify-center p-4 lg:p-6">
             <div className="max-w-2xl w-full">
               {/* Main Heading */}
-              <div className="mb-12">
-                <h1 className={`${config.main_title_size} md:${config.main_title_size} font-bold text-white mb-6 leading-tight`}>
+              <div className="mb-8">
+                <h1 className={`${config.main_title_size} md:${config.main_title_size} font-bold text-white mb-4 leading-tight`}>
                   {config.main_title}
                   <br />
                   <span className={`bg-gradient-to-r ${config.gradient_colors} bg-clip-text text-transparent`}>
@@ -116,23 +116,23 @@ const WelcomeScreen: React.FC = () => {
                   <br />
                   Digital Simulation
                 </h1>
-                <p className={`${config.subtitle_size} text-gray-200 mb-8 leading-relaxed`}>
+                <p className={`${config.subtitle_size} text-gray-200 mb-6 leading-relaxed`}>
                   {config.subtitle}
                 </p>
               </div>
 
               {/* Features Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
                 {config.features.map((feature, index) => {
                   const IconComponent = iconMap[feature.icon] || Target;
                   const colors = getColorClasses(feature.color);
                   return (
                     <div key={index} className="text-center">
-                      <div className={`w-12 h-12 ${colors.bg} rounded-xl flex items-center justify-center mx-auto mb-3 backdrop-blur-sm border border-white/20`}>
-                        <IconComponent className={`w-6 h-6 ${colors.icon}`} />
+                      <div className={`w-10 h-10 ${colors.bg} rounded-xl flex items-center justify-center mx-auto mb-2 backdrop-blur-sm border border-white/20`}>
+                        <IconComponent className={`w-5 h-5 ${colors.icon}`} />
                       </div>
-                      <h3 className="text-white font-semibold mb-2">{feature.title}</h3>
-                      <p className="text-gray-300 text-sm">{feature.description}</p>
+                      <h3 className="text-white font-semibold mb-1 text-sm">{feature.title}</h3>
+                      <p className="text-gray-300 text-xs">{feature.description}</p>
                     </div>
                   );
                 })}
@@ -140,32 +140,32 @@ const WelcomeScreen: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Side - Registration */}
-          <div className="flex-1 flex flex-col items-center justify-center p-8 relative">
-            {/* Registration Form */}
-            <div className="w-full max-w-4xl">
+              {/* Right Side - Registration */}
+              <div className="flex-1 flex flex-col items-center justify-center p-4 lg:p-6 relative">
+                {/* Registration Form */}
+                <div className="w-full max-w-lg">
               <div 
-                className={`bg-white/${config.form_background_opacity} ${config.form_backdrop_blur} rounded-3xl p-8 border border-white/${config.form_border_opacity} shadow-2xl`}
+                className={`bg-white/${config.form_background_opacity} ${config.form_backdrop_blur} rounded-2xl p-6 border border-white/${config.form_border_opacity} shadow-2xl`}
               >
-                <h3 className="text-2xl font-bold text-white mb-2 text-center">
+                <h3 className="text-xl font-bold text-white mb-2 text-center">
                   {config.form_title}
                 </h3>
-                <p className="text-gray-300 text-sm text-center mb-8">
+                <p className="text-gray-300 text-sm text-center mb-6">
                   {config.form_subtitle}
                 </p>
                 
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Left Column */}
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div>
-                      <label className="block text-sm font-medium text-white mb-3">
+                      <label className="block text-sm font-medium text-white mb-2">
                         {config.form_fields.education_level.label}
                         {config.form_fields.education_level.required && <span className="text-red-400 ml-1">*</span>}
                       </label>
                       <select
                         value={educationLevel}
                         onChange={(e) => setEducationLevel(e.target.value)}
-                        className={`w-full p-3 rounded-2xl bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
+                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
                         required={config.form_fields.education_level.required}
                       >
                         <option value="" className="bg-slate-800 text-white">Select your education level</option>
@@ -178,7 +178,7 @@ const WelcomeScreen: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-white mb-3">
+                      <label className="block text-sm font-medium text-white mb-2">
                         {config.form_fields.organization.label}
                         {config.form_fields.organization.required && <span className="text-red-400 ml-1">*</span>}
                       </label>
@@ -187,13 +187,13 @@ const WelcomeScreen: React.FC = () => {
                         value={organization}
                         onChange={(e) => setOrganization(e.target.value)}
                         placeholder={config.form_fields.organization.placeholder}
-                        className={`w-full p-3 rounded-2xl bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
+                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
                         required={config.form_fields.organization.required}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-white mb-3">
+                      <label className="block text-sm font-medium text-white mb-2">
                         {config.form_fields.school.label}
                         {config.form_fields.school.required && <span className="text-red-400 ml-1">*</span>}
                       </label>
@@ -202,23 +202,23 @@ const WelcomeScreen: React.FC = () => {
                         value={school}
                         onChange={(e) => setSchool(e.target.value)}
                         placeholder={config.form_fields.school.placeholder}
-                        className={`w-full p-3 rounded-2xl bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
+                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
                         required={config.form_fields.school.required}
                       />
                     </div>
                   </div>
 
                   {/* Right Column */}
-                  <div className="space-y-4">
+                  <div className="space-y-3">
                     <div>
-                      <label className="block text-sm font-medium text-white mb-3">
+                      <label className="block text-sm font-medium text-white mb-2">
                         {config.form_fields.year.label}
                         {config.form_fields.year.required && <span className="text-red-400 ml-1">*</span>}
                       </label>
                       <select
                         value={year}
                         onChange={(e) => setYear(e.target.value)}
-                        className={`w-full p-3 rounded-2xl bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
+                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
                         required={config.form_fields.year.required}
                       >
                         <option value="" className="bg-slate-800 text-white">Select your year</option>
@@ -231,7 +231,7 @@ const WelcomeScreen: React.FC = () => {
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-white mb-3">
+                      <label className="block text-sm font-medium text-white mb-2">
                         {config.form_fields.program.label}
                         {config.form_fields.program.required && <span className="text-red-400 ml-1">*</span>}
                       </label>
@@ -240,13 +240,13 @@ const WelcomeScreen: React.FC = () => {
                         value={program}
                         onChange={(e) => setProgram(e.target.value)}
                         placeholder={config.form_fields.program.placeholder}
-                        className={`w-full p-3 rounded-2xl bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
+                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
                         required={config.form_fields.program.required}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-white mb-3">
+                      <label className="block text-sm font-medium text-white mb-2">
                         {config.form_fields.field.label}
                         {config.form_fields.field.required && <span className="text-red-400 ml-1">*</span>}
                       </label>
@@ -255,20 +255,20 @@ const WelcomeScreen: React.FC = () => {
                         value={field}
                         onChange={(e) => setField(e.target.value)}
                         placeholder={config.form_fields.field.placeholder}
-                        className={`w-full p-3 rounded-2xl bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
+                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
                         required={config.form_fields.field.required}
                       />
                     </div>
 
                     <div>
-                      <label className="block text-sm font-medium text-white mb-3">
+                      <label className="block text-sm font-medium text-white mb-2">
                         {config.form_fields.how_heard.label}
                         {config.form_fields.how_heard.required && <span className="text-red-400 ml-1">*</span>}
                       </label>
                       <select
                         value={howHeard}
                         onChange={(e) => setHowHeard(e.target.value)}
-                        className={`w-full p-3 rounded-2xl bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
+                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
                         required={config.form_fields.how_heard.required}
                       >
                         <option value="" className="bg-slate-800 text-white">Select how you heard about this</option>
@@ -283,25 +283,25 @@ const WelcomeScreen: React.FC = () => {
                 </div>
 
                 {/* Submit Button - Full Width */}
-                <div className="mt-8">
+                <div className="mt-6">
                   <button
                     onClick={handleFormSubmit}
                     disabled={!isFormValid()}
-                    className={`w-full py-4 px-8 rounded-2xl bg-gradient-to-r ${config.button_gradient} text-white font-semibold text-lg
+                    className={`w-full py-3 px-6 rounded-lg bg-gradient-to-r ${config.button_gradient} text-white font-semibold text-base
                              disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed
                              enabled:hover:from-blue-400 enabled:hover:to-purple-400 
-                             transition-all duration-300 transform enabled:hover:scale-[1.02] enabled:hover:shadow-xl
-                             flex items-center justify-center gap-3`}
+                             transition-all duration-300 transform enabled:hover:scale-[1.02] enabled:hover:shadow-lg
+                             flex items-center justify-center gap-2`}
                   >
                     {config.button_text}
-                    <ArrowRight className="w-5 h-5" />
+                    <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
               </div>
 
               {/* Data Collection Footer */}
-              <div className="text-center mt-8 space-y-4">
-                <div className="p-4 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10">
+              <div className="text-center mt-6 space-y-3">
+                <div className="p-3 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10">
                   <h4 className="text-white font-semibold mb-2 text-sm">{config.data_collection_title}</h4>
                   <p className="text-gray-300 text-xs leading-relaxed">
                     {config.data_collection_text}
