@@ -1,9 +1,67 @@
-import React from 'react';
-import { BarChart3, Users, Clock, TrendingUp, Award, Target, RefreshCw } from 'lucide-react';
+import React, { useState, useMemo } from 'react';
+import { BarChart3, Users, Clock, TrendingUp, Award, Target, RefreshCw, Grid, List, Search, Filter, Download } from 'lucide-react';
 import { useAnalytics } from '../../hooks/useAnalytics';
+import SessionCard from './SessionCard';
+import SessionDetailModal from './SessionDetailModal';
 
 const AnalyticsDashboard: React.FC = () => {
   const { analyticsData, summary, loading, error, refetch } = useAnalytics();
+  const [selectedSession, setSelectedSession] = useState<any>(null);
+  const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [scoreFilter, setScoreFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
+  const [educationFilter, setEducationFilter] = useState<string>('all');
+  const [ageFilter, setAgeFilter] = useState<string>('all');
+
+  // Filter and search logic
+  const filteredData = useMemo(() => {
+    if (!analyticsData) return [];
+
+    return analyticsData.filter(session => {
+      // Search filter
+      if (searchTerm) {
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch = 
+          session.session_id.toLowerCase().includes(searchLower) ||
+          session.user_demographics.age.toLowerCase().includes(searchLower) ||
+          session.user_demographics.educationLevel.toLowerCase().includes(searchLower) ||
+          (session.user_demographics.organization && session.user_demographics.organization.toLowerCase().includes(searchLower)) ||
+          (session.user_demographics.school && session.user_demographics.school.toLowerCase().includes(searchLower));
+        
+        if (!matchesSearch) return false;
+      }
+
+      // Score filter
+      if (scoreFilter !== 'all') {
+        if (scoreFilter === 'high' && session.final_score < 80) return false;
+        if (scoreFilter === 'medium' && (session.final_score < 60 || session.final_score >= 80)) return false;
+        if (scoreFilter === 'low' && session.final_score >= 60) return false;
+      }
+
+      // Education filter
+      if (educationFilter !== 'all' && session.user_demographics.educationLevel !== educationFilter) {
+        return false;
+      }
+
+      // Age filter
+      if (ageFilter !== 'all' && session.user_demographics.age !== ageFilter) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [analyticsData, searchTerm, scoreFilter, educationFilter, ageFilter]);
+
+  // Get unique values for filters
+  const uniqueEducationLevels = useMemo(() => {
+    if (!analyticsData) return [];
+    return Array.from(new Set(analyticsData.map(s => s.user_demographics.educationLevel)));
+  }, [analyticsData]);
+
+  const uniqueAgeGroups = useMemo(() => {
+    if (!analyticsData) return [];
+    return Array.from(new Set(analyticsData.map(s => s.user_demographics.age)));
+  }, [analyticsData]);
 
   if (loading) {
     return (
@@ -136,46 +194,157 @@ const AnalyticsDashboard: React.FC = () => {
       {/* Recent Sessions */}
       {analyticsData && analyticsData.length > 0 && (
         <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6">
-          <h3 className="text-lg font-bold text-gray-900 mb-4">Recent Sessions</h3>
-          
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Age Group</th>
-                  <th className="text-left py-3 px-4 font-semibold text-gray-700">Education</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700">Score</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700">Time</th>
-                  <th className="text-right py-3 px-4 font-semibold text-gray-700">Scenes</th>
-                </tr>
-              </thead>
-              <tbody>
-                {analyticsData.slice(0, 10).map((entry, index) => (
-                  <tr key={entry.id} className={index % 2 === 0 ? 'bg-gray-50' : ''}>
-                    <td className="py-3 px-4 text-sm text-gray-600">
-                      {new Date(entry.submission_timestamp).toLocaleDateString()}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">
-                      {entry.user_demographics.age}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-gray-600">
-                      {entry.user_demographics.educationLevel}
-                    </td>
-                    <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">
-                      {entry.final_score}%
-                    </td>
-                    <td className="py-3 px-4 text-sm text-right text-gray-600">
-                      {Math.round(entry.completion_time / 60)}m
-                    </td>
-                    <td className="py-3 px-4 text-sm text-right text-gray-600">
-                      {entry.completed_scenes.length}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-lg font-bold text-gray-900">
+              Recent Sessions ({filteredData.length} of {analyticsData.length})
+            </h3>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setViewMode('grid')}
+                className={`p-2 rounded-lg transition-colors ${
+                  viewMode === 'grid' 
+                    ? 'bg-blue-100 text-blue-600' 
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+              >
+                <Grid className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('list')}
+                className={`p-2 rounded-lg transition-colors ${
+                  viewMode === 'list' 
+                    ? 'bg-blue-100 text-blue-600' 
+                    : 'text-gray-500 hover:bg-gray-100'
+                }`}
+              >
+                <List className="w-4 h-4" />
+              </button>
+            </div>
           </div>
+
+          {/* Filters */}
+          <div className="mb-6 space-y-4">
+            <div className="flex flex-wrap gap-4">
+              {/* Search */}
+              <div className="flex-1 min-w-64">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 w-4 h-4 text-gray-400" />
+                  <input
+                    type="text"
+                    placeholder="Search sessions..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+              </div>
+
+              {/* Score Filter */}
+              <select
+                value={scoreFilter}
+                onChange={(e) => setScoreFilter(e.target.value as any)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Scores</option>
+                <option value="high">High (80%+)</option>
+                <option value="medium">Medium (60-79%)</option>
+                <option value="low">Low (<60%)</option>
+              </select>
+
+              {/* Education Filter */}
+              <select
+                value={educationFilter}
+                onChange={(e) => setEducationFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Education Levels</option>
+                {uniqueEducationLevels.map(level => (
+                  <option key={level} value={level}>{level}</option>
+                ))}
+              </select>
+
+              {/* Age Filter */}
+              <select
+                value={ageFilter}
+                onChange={(e) => setAgeFilter(e.target.value)}
+                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value="all">All Age Groups</option>
+                {uniqueAgeGroups.map(age => (
+                  <option key={age} value={age}>{age}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          
+          {filteredData.length === 0 ? (
+            <div className="text-center py-12">
+              <Filter className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+              <h3 className="text-lg font-semibold text-gray-700 mb-2">No Sessions Found</h3>
+              <p className="text-gray-500">Try adjusting your filters or search terms.</p>
+            </div>
+          ) : viewMode === 'grid' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredData.slice(0, 12).map((session) => (
+                <SessionCard
+                  key={session.id}
+                  session={session}
+                  onClick={() => setSelectedSession(session)}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b border-gray-200">
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Age Group</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Education</th>
+                    <th className="text-right py-3 px-4 font-semibold text-gray-700">Score</th>
+                    <th className="text-right py-3 px-4 font-semibold text-gray-700">Time</th>
+                    <th className="text-right py-3 px-4 font-semibold text-gray-700">Scenes</th>
+                    <th className="text-center py-3 px-4 font-semibold text-gray-700">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredData.slice(0, 10).map((entry, index) => (
+                    <tr 
+                      key={entry.id} 
+                      className={`${index % 2 === 0 ? 'bg-gray-50' : ''} hover:bg-blue-50 transition-colors`}
+                    >
+                      <td className="py-3 px-4 text-sm text-gray-600">
+                        {new Date(entry.submission_timestamp).toLocaleDateString()}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-600">
+                        {entry.user_demographics.age}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-gray-600">
+                        {entry.user_demographics.educationLevel}
+                      </td>
+                      <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">
+                        {entry.final_score}%
+                      </td>
+                      <td className="py-3 px-4 text-sm text-right text-gray-600">
+                        {Math.round(entry.completion_time / 60)}m
+                      </td>
+                      <td className="py-3 px-4 text-sm text-right text-gray-600">
+                        {entry.completed_scenes.length}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <button
+                          onClick={() => setSelectedSession(entry)}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+                        >
+                          View Details
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
 
@@ -188,6 +357,15 @@ const AnalyticsDashboard: React.FC = () => {
             Analytics data will appear here once learners complete the simulation.
           </p>
         </div>
+      )}
+
+      {/* Session Detail Modal */}
+      {selectedSession && (
+        <SessionDetailModal
+          session={selectedSession}
+          isOpen={!!selectedSession}
+          onClose={() => setSelectedSession(null)}
+        />
       )}
     </div>
   );

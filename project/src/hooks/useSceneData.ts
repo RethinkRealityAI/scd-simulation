@@ -7,37 +7,40 @@ export interface SceneConfiguration {
   scene_id: number;
   title: string;
   description: string;
-  quiz_questions: any;
-  action_prompts: any;
-  discussion_prompts: string[];
-  clinical_findings: string[];
-  scoring_categories: string[];
-  vitals_config: any;
+  vitals_config?: any;
+  quiz_questions?: any;
+  action_prompts?: any;
+  discussion_prompts?: string[];
+  clinical_findings?: string[];
+  scoring_categories?: string[];
+  is_active: boolean;
   created_at: string;
   updated_at: string;
-  version: number;
-  is_active: boolean;
 }
 
 export const useSceneData = () => {
-  const [sceneConfigs, setSceneConfigs] = useState<SceneConfiguration[]>([]);
+  const [sceneConfigurations, setSceneConfigurations] = useState<SceneConfiguration[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchSceneConfigurations();
+  }, []);
 
   const fetchSceneConfigurations = async () => {
     try {
       setLoading(true);
       setError(null);
-
-      const { data, error: fetchError } = await supabase
+      
+      const { data, error } = await supabase
         .from('scene_configurations')
         .select('*')
         .eq('is_active', true)
-        .order('scene_id', { ascending: true });
+        .order('scene_id');
 
-      if (fetchError) throw fetchError;
-
-      setSceneConfigs(data || []);
+      if (error) throw error;
+      
+      setSceneConfigurations(data || []);
     } catch (err) {
       console.error('Error fetching scene configurations:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch scene configurations');
@@ -48,161 +51,166 @@ export const useSceneData = () => {
 
   const saveSceneConfiguration = async (sceneData: SceneData): Promise<boolean> => {
     try {
-      setLoading(true);
       setError(null);
-
-      // Check if configuration exists for this scene
-      const { data: existing } = await supabase
-        .from('scene_configurations')
-        .select('id, version')
-        .eq('scene_id', parseInt(sceneData.id))
-        .eq('is_active', true)
-        .single();
-
-      const configData = {
+      
+      const configurationData = {
         scene_id: parseInt(sceneData.id),
         title: sceneData.title,
         description: sceneData.description,
-        quiz_questions: sceneData.quiz || { questions: [] },
-        action_prompts: sceneData.actionPrompt || {},
-        discussion_prompts: sceneData.discussionPrompts || [],
-        clinical_findings: sceneData.clinicalFindings || [],
-        scoring_categories: sceneData.scoringCategories || [],
         vitals_config: sceneData.vitals,
-        updated_at: new Date().toISOString(),
+        quiz_questions: sceneData.quiz,
+        action_prompts: sceneData.actionPrompt,
+        discussion_prompts: sceneData.discussionPrompts,
+        clinical_findings: sceneData.clinicalFindings,
+        scoring_categories: sceneData.scoringCategories,
+        is_active: true
       };
 
-      if (existing) {
-        // Update existing configuration
-        const { error: updateError } = await supabase
-          .from('scene_configurations')
-          .update({
-            ...configData,
-            version: existing.version + 1,
-          })
-          .eq('id', existing.id);
+      // Try to insert first
+      const { data: insertData, error: insertError } = await supabase
+        .from('scene_configurations')
+        .insert([configurationData])
+        .select()
+        .single();
 
-        if (updateError) throw updateError;
+      if (insertError) {
+        // If insert fails due to unique constraint, try update
+        if (insertError.code === '23505') {
+          const { data: updateData, error: updateError } = await supabase
+            .from('scene_configurations')
+            .update({
+              title: configurationData.title,
+              description: configurationData.description,
+              vitals_config: configurationData.vitals_config,
+              quiz_questions: configurationData.quiz_questions,
+              action_prompts: configurationData.action_prompts,
+              discussion_prompts: configurationData.discussion_prompts,
+              clinical_findings: configurationData.clinical_findings,
+              scoring_categories: configurationData.scoring_categories,
+              updated_at: new Date().toISOString()
+            })
+            .eq('scene_id', configurationData.scene_id)
+            .select()
+            .single();
+
+          if (updateError) throw updateError;
+          
+          // Update local state
+          setSceneConfigurations(prev => 
+            prev.map(config => 
+              config.scene_id === configurationData.scene_id 
+                ? { ...config, ...updateData }
+                : config
+            )
+          );
+        } else {
+          throw insertError;
+        }
       } else {
-        // Insert new configuration
-        const { error: insertError } = await supabase
-          .from('scene_configurations')
-          .insert([{
-            ...configData,
-            version: 1,
-            is_active: true,
-          }]);
-
-        if (insertError) throw insertError;
+        // Insert successful, add to local state
+        setSceneConfigurations(prev => [...prev, insertData]);
       }
 
-      // Refresh configurations
-      await fetchSceneConfigurations();
       return true;
     } catch (err) {
       console.error('Error saving scene configuration:', err);
       setError(err instanceof Error ? err.message : 'Failed to save scene configuration');
       return false;
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const getSceneConfiguration = async (sceneId: number): Promise<SceneConfiguration | null> => {
-    try {
-      const { data, error: fetchError } = await supabase
-        .from('scene_configurations')
-        .select('*')
-        .eq('scene_id', sceneId)
-        .eq('is_active', true)
-        .single();
-
-      if (fetchError) {
-        console.log('No custom configuration found, using defaults');
-        return null;
-      }
-
-      return data;
-    } catch (err) {
-      console.error('Error fetching scene configuration:', err);
-      return null;
     }
   };
 
   const deleteSceneConfiguration = async (sceneId: number): Promise<boolean> => {
     try {
-      setLoading(true);
       setError(null);
-
-      const { error: deleteError } = await supabase
+      
+      const { error } = await supabase
         .from('scene_configurations')
-        .update({ is_active: false })
+        .delete()
         .eq('scene_id', sceneId);
 
-      if (deleteError) throw deleteError;
-
-      await fetchSceneConfigurations();
+      if (error) throw error;
+      
+      // Update local state
+      setSceneConfigurations(prev => prev.filter(config => config.scene_id !== sceneId));
+      
       return true;
     } catch (err) {
       console.error('Error deleting scene configuration:', err);
       setError(err instanceof Error ? err.message : 'Failed to delete scene configuration');
       return false;
-    } finally {
-      setLoading(false);
     }
   };
 
-  const exportSceneConfiguration = async (sceneId: number): Promise<string | null> => {
+  const updateSceneConfiguration = async (sceneId: number, updates: Partial<SceneConfiguration>): Promise<boolean> => {
     try {
-      const config = await getSceneConfiguration(sceneId);
-      if (!config) return null;
-
-      return JSON.stringify(config, null, 2);
-    } catch (err) {
-      console.error('Error exporting scene configuration:', err);
-      return null;
-    }
-  };
-
-  const importSceneConfiguration = async (jsonData: string): Promise<boolean> => {
-    try {
-      const config = JSON.parse(jsonData);
+      setError(null);
       
-      const sceneData: SceneData = {
-        id: config.scene_id.toString(),
-        title: config.title,
-        description: config.description,
-        videoUrl: '',
-        vitals: config.vitals_config,
-        quiz: config.quiz_questions,
-        actionPrompt: config.action_prompts,
-        discussionPrompts: config.discussion_prompts,
-        clinicalFindings: config.clinical_findings,
-        scoringCategories: config.scoring_categories,
-      };
+      const { data, error } = await supabase
+        .from('scene_configurations')
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString()
+        })
+        .eq('scene_id', sceneId)
+        .select()
+        .single();
 
-      return await saveSceneConfiguration(sceneData);
+      if (error) throw error;
+      
+      // Update local state
+      setSceneConfigurations(prev => 
+        prev.map(config => 
+          config.scene_id === sceneId 
+            ? { ...config, ...data }
+            : config
+        )
+      );
+      
+      return true;
     } catch (err) {
-      console.error('Error importing scene configuration:', err);
-      setError('Invalid configuration file format');
+      console.error('Error updating scene configuration:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update scene configuration');
       return false;
     }
   };
 
-  useEffect(() => {
-    fetchSceneConfigurations();
-  }, []);
+  const getSceneConfiguration = (sceneId: number): SceneConfiguration | undefined => {
+    return sceneConfigurations.find(config => config.scene_id === sceneId);
+  };
+
+  const exportSceneConfiguration = (sceneId: number): string => {
+    const config = getSceneConfiguration(sceneId);
+    if (!config) return '';
+    
+    return JSON.stringify(config, null, 2);
+  };
+
+  const importSceneConfiguration = async (configData: string): Promise<boolean> => {
+    try {
+      const parsed = JSON.parse(configData);
+      
+      if (!parsed.scene_id || !parsed.title || !parsed.description) {
+        throw new Error('Invalid configuration data');
+      }
+      
+      return await saveSceneConfiguration(parsed as SceneData);
+    } catch (err) {
+      console.error('Error importing scene configuration:', err);
+      setError(err instanceof Error ? err.message : 'Failed to import scene configuration');
+      return false;
+    }
+  };
 
   return {
-    sceneConfigs,
+    sceneConfigurations,
     loading,
     error,
+    fetchSceneConfigurations,
     saveSceneConfiguration,
-    getSceneConfiguration,
     deleteSceneConfiguration,
+    updateSceneConfiguration,
+    getSceneConfiguration,
     exportSceneConfiguration,
-    importSceneConfiguration,
-    refetch: fetchSceneConfigurations,
+    importSceneConfiguration
   };
 };
-

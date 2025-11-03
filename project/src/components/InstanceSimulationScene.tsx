@@ -406,12 +406,34 @@ const InstanceSimulationScene: React.FC = () => {
 
                     {/* SBAR Chart - Only for Scene 4 */}
                     {currentSceneNumber === 4 && (
-                      <div className="flex-shrink-0">
+                      <div className="flex-1 min-h-0">
                         <SBARChart
+                          data={{
+                            situation: [
+                              '15-year-old Tobiloba Johnson',
+                              'Sickle cell disease patient',
+                              'Severe pain crisis (9/10)'
+                            ],
+                            background: [
+                              'Known sickle cell disease',
+                              'Previous VOC episodes',
+                              'Pain started 2 days ago'
+                            ],
+                            assessment: [
+                              'HR: 128 bpm (elevated)',
+                              'Pain remains 9/10 after morphine',
+                              'Appears withdrawn and guarded'
+                            ],
+                            recommendation: [
+                              'Escalate to attending physician',
+                              'Consider additional pain management',
+                              'Monitor for complications'
+                            ]
+                          }}
                           onSBARComplete={(sbarData) => {
                             console.log('SBAR completed:', sbarData);
                           }}
-                          className="bg-white/10 backdrop-blur-xl border border-white/20"
+                          className="bg-white/10 backdrop-blur-xl border border-white/20 h-full"
                         />
                       </div>
                     )}

@@ -68,7 +68,7 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({
       color: 'from-gray-500 to-slate-500'
     },
     {
-      id: 'welcome-screen',
+      id: 'welcome',
       name: 'Welcome Screen',
       icon: Home,
       description: 'Customize welcome screen content',

@@ -7,14 +7,25 @@ export interface AnalyticsEntry {
   user_demographics: {
     age: string;
     educationLevel: string;
+    organization?: string;
+    school?: string;
+    year?: string;
+    program?: string;
+    field?: string;
+    howHeard?: string;
   };
   responses: Array<{
     questionId: string;
     sceneId: string;
+    questionText?: string;
+    questionType?: 'multiple-choice' | 'text-input' | 'multi-select';
     answer: string;
+    correctAnswer?: string | string[];
+    explanation?: string;
     isCorrect: boolean;
     timeSpent: number;
     timestamp: string;
+    options?: string[];
   }>;
   category_scores: {
     timelyPainManagement: number;
@@ -27,6 +38,19 @@ export interface AnalyticsEntry {
   completion_time: number;
   completed_scenes: number[];
   submission_timestamp: string;
+  start_time?: string;
+  end_time?: string;
+  device_info?: {
+    userAgent: string;
+    screenResolution: string;
+    platform: string;
+  };
+  performance_metrics?: {
+    averageTimePerQuestion: number;
+    longestQuestionTime: number;
+    shortestQuestionTime: number;
+    questionsPerScene: number;
+  };
 }
 
 export interface AnalyticsSummary {

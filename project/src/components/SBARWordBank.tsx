@@ -233,13 +233,13 @@ const SBARWordBank: React.FC<SBARWordBankProps> = ({ onComplete, onSubmit, isCom
   return (
     <div className="h-full flex flex-col bg-white/10 backdrop-blur-xl border border-white/20 rounded-lg overflow-hidden">
       {/* Fixed Header */}
-      <div className="flex-shrink-0 p-4 border-b border-white/10">
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-4 rounded bg-gradient-to-r from-blue-400 to-purple-400"></div>
-            <h3 className="text-sm font-semibold text-white">Interactive SBAR Communication</h3>
+      <div className="flex-shrink-0 p-3 sm:p-4 border-b border-white/10">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+          <div className="flex items-center gap-2 min-w-0 flex-1">
+            <div className="w-4 h-4 rounded bg-gradient-to-r from-blue-400 to-purple-400 flex-shrink-0"></div>
+            <h3 className="text-sm sm:text-base font-semibold text-white truncate">Interactive SBAR Communication</h3>
           </div>
-          <div className="flex gap-1">
+          <div className="flex gap-1 flex-shrink-0">
             <button
               onClick={() => setShowHints(!showHints)}
               className="p-1.5 rounded bg-yellow-500/20 hover:bg-yellow-500/30 transition-colors"
@@ -270,20 +270,20 @@ const SBARWordBank: React.FC<SBARWordBankProps> = ({ onComplete, onSubmit, isCom
             <span>Progress</span>
             <span>{Object.values(selectedOptions).reduce((acc, arr) => acc + arr.length, 0)}/12 selected</span>
           </div>
-          <div className="flex gap-1">
+          <div className="grid grid-cols-4 gap-1">
             {sbarSections.map((section) => {
               const progress = selectedOptions[section.key].length;
               const maxProgress = 3;
               
               return (
-                <div key={section.key} className="flex-1">
+                <div key={section.key} className="flex flex-col">
                   <div className="h-1.5 bg-slate-700 rounded-full overflow-hidden">
                     <div 
                       className={`h-full bg-gradient-to-r ${section.color} transition-all duration-500`}
                       style={{ width: `${(progress / maxProgress) * 100}%` }}
                     />
                   </div>
-                  <div className="text-xs text-center mt-1 text-gray-400">
+                  <div className="text-xs text-center mt-1 text-gray-400 truncate">
                     {section.title.charAt(0)}
                   </div>
                 </div>
@@ -295,7 +295,7 @@ const SBARWordBank: React.FC<SBARWordBankProps> = ({ onComplete, onSubmit, isCom
 
       {/* Scrollable SBAR Sections */}
       <div className="flex-1 overflow-y-auto">
-        <div className="p-4 space-y-4">
+        <div className="p-3 sm:p-4 space-y-3 sm:space-y-4">
           {sbarSections.map((section) => {
             const categoryOptions = getOptionsByCategory(section.key);
             const score = getCategoryScore(section.key);
@@ -307,14 +307,14 @@ const SBARWordBank: React.FC<SBARWordBankProps> = ({ onComplete, onSubmit, isCom
               } ${section.bgColor} overflow-hidden`}>
                 {/* Section Header */}
                 <div className="p-3 border-b border-white/10">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h4 className={`font-bold text-sm ${section.textColor}`}>
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <h4 className={`font-bold text-sm sm:text-base ${section.textColor} truncate`}>
                         {section.title}
                       </h4>
-                      <p className="text-gray-300 text-xs">{section.subtitle}</p>
+                      <p className="text-gray-300 text-xs truncate">{section.subtitle}</p>
                     </div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-shrink-0">
                       {showFeedback && (
                         <div className="text-xs px-2 py-1 rounded bg-slate-800/50">
                           <span className="text-green-400">{score.correct}</span>
@@ -322,7 +322,7 @@ const SBARWordBank: React.FC<SBARWordBankProps> = ({ onComplete, onSubmit, isCom
                         </div>
                       )}
                       {isComplete && (
-                        <CheckCircle className="w-4 h-4 text-green-400" />
+                        <CheckCircle className="w-4 h-4 text-green-400 flex-shrink-0" />
                       )}
                     </div>
                   </div>
@@ -344,7 +344,7 @@ const SBARWordBank: React.FC<SBARWordBankProps> = ({ onComplete, onSubmit, isCom
                           return (
                             <div
                               key={optionId}
-                              className={`px-3 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-all duration-200 ${
+                              className={`px-2 sm:px-3 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition-all duration-200 ${
                                 feedback === 'correct' 
                                   ? 'bg-green-500/20 border border-green-400 text-green-100'
                                   : feedback === 'incorrect'
@@ -352,9 +352,9 @@ const SBARWordBank: React.FC<SBARWordBankProps> = ({ onComplete, onSubmit, isCom
                                   : 'bg-cyan-500/20 border border-cyan-400 text-cyan-100'
                               }`}
                             >
-                              <span className="font-medium">{option?.text}</span>
-                              {feedback === 'correct' && <CheckCircle className="w-3 h-3" />}
-                              {feedback === 'incorrect' && <XCircle className="w-3 h-3" />}
+                              <span className="font-medium truncate">{option?.text}</span>
+                              {feedback === 'correct' && <CheckCircle className="w-3 h-3 flex-shrink-0" />}
+                              {feedback === 'incorrect' && <XCircle className="w-3 h-3 flex-shrink-0" />}
                             </div>
                           );
                         })}
@@ -386,7 +386,7 @@ const SBARWordBank: React.FC<SBARWordBankProps> = ({ onComplete, onSubmit, isCom
                           key={option.id}
                           onClick={() => handleOptionSelect(option)}
                           disabled={!canSelect && !isSelected}
-                          className={`w-full p-3 text-left rounded-lg border transition-all duration-200 text-xs ${
+                          className={`w-full p-2 sm:p-3 text-left rounded-lg border transition-all duration-200 text-xs ${
                             isSelected
                               ? feedback === 'correct'
                                 ? 'bg-green-500/20 border-green-400 text-green-100 shadow-lg shadow-green-500/20'
@@ -398,16 +398,16 @@ const SBARWordBank: React.FC<SBARWordBankProps> = ({ onComplete, onSubmit, isCom
                               : 'bg-slate-700/20 border-slate-700 text-gray-500 cursor-not-allowed opacity-50'
                           }`}
                         >
-                          <div className="flex items-center justify-between">
-                            <span className="leading-relaxed font-medium">{option.text}</span>
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="leading-relaxed font-medium text-left flex-1 min-w-0 break-words">{option.text}</span>
                             {feedback === 'correct' && (
-                              <div className="flex items-center gap-1">
+                              <div className="flex items-center gap-1 flex-shrink-0">
                                 <Sparkles className="w-3 h-3 text-green-400" />
                                 <CheckCircle className="w-3 h-3 text-green-400" />
                               </div>
                             )}
                             {feedback === 'incorrect' && (
-                              <XCircle className="w-3 h-3 text-red-400" />
+                              <XCircle className="w-3 h-3 text-red-400 flex-shrink-0" />
                             )}
                           </div>
                         </button>
@@ -425,21 +425,21 @@ const SBARWordBank: React.FC<SBARWordBankProps> = ({ onComplete, onSubmit, isCom
       <div className="flex-shrink-0 border-t border-white/10 bg-slate-900/30 backdrop-blur-sm">
         {/* Feedback Section */}
         {showFeedback && (
-          <div className="p-4 border-b border-white/10">
+          <div className="p-3 sm:p-4 border-b border-white/10">
             <div className="p-3 rounded-lg border-l-4 border-cyan-400 bg-cyan-500/20 animate-fade-in">
               <div className="flex items-center gap-2 mb-2">
-                <Sparkles className="w-4 h-4 text-cyan-400" />
+                <Sparkles className="w-4 h-4 text-cyan-400 flex-shrink-0" />
                 <span className="font-bold text-sm text-cyan-400">SBAR Assessment Complete</span>
               </div>
               <div className="bg-slate-800/50 rounded-lg p-3">
                 <p className="text-white font-medium mb-2 text-xs">Performance Summary:</p>
-                <div className="grid grid-cols-2 gap-2 mb-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-2">
                   {sbarSections.map((section) => {
                     const score = getCategoryScore(section.key);
                     return (
                       <div key={section.key} className="flex justify-between text-xs">
-                        <span className={section.textColor}>{section.title}:</span>
-                        <span className="text-gray-200">{score.correct}/{score.total}</span>
+                        <span className={`${section.textColor} truncate`}>{section.title}:</span>
+                        <span className="text-gray-200 flex-shrink-0">{score.correct}/{score.total}</span>
                       </div>
                     );
                   })}
@@ -462,7 +462,7 @@ const SBARWordBank: React.FC<SBARWordBankProps> = ({ onComplete, onSubmit, isCom
         )}
 
         {/* Submit Button */}
-        <div className="p-4">
+        <div className="p-3 sm:p-4">
           {!showFeedback ? (
             <button
               onClick={handleSubmit}
@@ -472,14 +472,14 @@ const SBARWordBank: React.FC<SBARWordBankProps> = ({ onComplete, onSubmit, isCom
                        enabled:hover:from-cyan-400 enabled:hover:to-blue-400 transition-all duration-200 
                        flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
             >
-              Submit SBAR Communication
-              <ArrowRight className="w-4 h-4" />
+              <span className="truncate">Submit SBAR Communication</span>
+              <ArrowRight className="w-4 h-4 flex-shrink-0" />
             </button>
           ) : (
             <div className="w-full py-3 px-4 rounded-lg bg-green-500/20 border border-green-400 text-green-100 font-semibold text-sm
                           flex items-center justify-center gap-2 shadow-lg">
-              <CheckCircle className="w-4 h-4" />
-              SBAR Communication Submitted
+              <CheckCircle className="w-4 h-4 flex-shrink-0" />
+              <span className="truncate">SBAR Communication Submitted</span>
             </div>
           )}
         </div>

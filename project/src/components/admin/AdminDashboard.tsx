@@ -45,7 +45,7 @@ const AdminDashboard: React.FC = () => {
   const [showSceneEditor, setShowSceneEditor] = useState(false);
   
   // Settings state
-  const [webhookUrl, setWebhookUrl] = useState('https://hook.us2.make.com/255f21cb3adzdqw4kobc89b981g1jmie');
+  const [webhookUrl, setWebhookUrl] = useState(import.meta.env.VITE_WEBHOOK_URL || 'https://hook.us2.make.com/255f21cb3adzdqw4kobc89b981g1jmie');
   const [settingsChanged, setSettingsChanged] = useState(false);
 
   const selectedInstance = instances.find(instance => instance.id === selectedInstanceId);
@@ -67,9 +67,9 @@ const AdminDashboard: React.FC = () => {
       case 'instances':
         return <SimulationInstanceDashboard onClose={() => {}} />;
       case 'videos':
-        return <EnhancedVideoManagement />;
+        return <EnhancedVideoManagement onMessage={setMessage} />;
       case 'scenes':
-        return <SceneListAdmin />;
+        return <SceneManagementDashboard />;
       case 'scene-management':
         return <SceneManagementDashboard />;
       case 'analytics':

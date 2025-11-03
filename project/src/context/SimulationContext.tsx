@@ -264,7 +264,8 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
       }
 
       // Webhook transmission to specified endpoint
-      const response = await fetch('https://hook.us2.make.com/255f21cb3adzdqw4kobc89b981g1jmie', {
+      const webhookUrl = import.meta.env.VITE_WEBHOOK_URL || 'https://hook.us2.make.com/255f21cb3adzdqw4kobc89b981g1jmie';
+      const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

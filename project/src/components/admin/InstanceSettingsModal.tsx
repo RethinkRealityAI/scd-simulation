@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Building2, Link, Palette, Settings, Save, RefreshCw } from 'lucide-react';
+import { X, Save, RefreshCw, AlertCircle, CheckCircle, Palette, Globe, Shield } from 'lucide-react';
 import { SimulationInstance } from '../../hooks/useSimulationInstances';
 
 interface InstanceSettingsModalProps {
@@ -8,288 +8,188 @@ interface InstanceSettingsModalProps {
   onSave: (id: string, updates: Partial<SimulationInstance>) => Promise<void>;
 }
 
-const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({ 
-  instance, 
-  onClose, 
-  onSave 
-}) => {
-  const [formData, setFormData] = useState({
-    name: instance.name,
-    institution_name: instance.institution_name,
-    description: instance.description || '',
-    webhook_url: instance.webhook_url || '',
-    webhook_secret: instance.webhook_secret || '',
-    primary_color: instance.branding_config.primary_color,
-    secondary_color: instance.branding_config.secondary_color,
-    accent_color: instance.branding_config.accent_color,
-    background_color: instance.branding_config.background_color,
-    text_color: instance.branding_config.text_color,
-    font_family: instance.branding_config.font_family,
-    is_active: instance.is_active,
-    requires_approval: instance.requires_approval,
-    max_sessions_per_day: instance.max_sessions_per_day || '',
-    session_timeout_minutes: instance.session_timeout_minutes,
-    webhook_retry_count: instance.webhook_retry_count,
-    webhook_timeout_seconds: instance.webhook_timeout_seconds
-  });
-
-  const [loading, setLoading] = useState(false);
+const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({ instance, onClose, onSave }) => {
+  const [editedInstance, setEditedInstance] = useState<SimulationInstance>(instance);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'basic' | 'webhook' | 'branding' | 'advanced'>('basic');
+  const [activeTab, setActiveTab] = useState<'basic' | 'branding' | 'webhook' | 'content'>('basic');
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setLoading(true);
-    setError(null);
+  useEffect(() => {
+    setEditedInstance(instance);
+  }, [instance]);
 
+  const handleSave = async () => {
     try {
-      const updates: Partial<SimulationInstance> = {
-        name: formData.name,
-        institution_name: formData.institution_name,
-        description: formData.description || undefined,
-        webhook_url: formData.webhook_url || undefined,
-        webhook_secret: formData.webhook_secret || undefined,
-        branding_config: {
-          primary_color: formData.primary_color,
-          secondary_color: formData.secondary_color,
-          accent_color: formData.accent_color,
-          background_color: formData.background_color,
-          text_color: formData.text_color,
-          font_family: formData.font_family
-        },
-        is_active: formData.is_active,
-        requires_approval: formData.requires_approval,
-        max_sessions_per_day: formData.max_sessions_per_day ? parseInt(formData.max_sessions_per_day.toString()) : undefined,
-        session_timeout_minutes: formData.session_timeout_minutes,
-        webhook_retry_count: formData.webhook_retry_count,
-        webhook_timeout_seconds: formData.webhook_timeout_seconds
-      };
-
-      await onSave(instance.id, updates);
+      setSaving(true);
+      setError(null);
+      
+      await onSave(instance.id, editedInstance);
+      onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to update instance');
+      setError(err instanceof Error ? err.message : 'Failed to save instance settings');
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
 
-  const handleInputChange = (field: string, value: any) => {
-    setFormData(prev => ({ ...prev, [field]: value }));
+  const handleInputChange = (field: keyof SimulationInstance, value: any) => {
+    setEditedInstance(prev => ({
+      ...prev,
+      [field]: value
+    }));
   };
 
-  const generateShareableLink = () => {
-    const baseUrl = window.location.origin;
-    return `${baseUrl}/sim/${instance.institution_id}`;
+  const handleBrandingChange = (field: keyof SimulationInstance['branding_config'], value: any) => {
+    setEditedInstance(prev => ({
+      ...prev,
+      branding_config: {
+        ...prev.branding_config,
+        [field]: value
+      }
+    }));
   };
 
-  const generateQRCode = () => {
-    const link = generateShareableLink();
-    return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(link)}`;
-  };
-
-  const copyToClipboard = (text: string) => {
-    navigator.clipboard.writeText(text);
-    // You could add a toast notification here
+  const handleContentChange = (field: keyof SimulationInstance['content_config'], value: any) => {
+    setEditedInstance(prev => ({
+      ...prev,
+      content_config: {
+        ...prev.content_config,
+        [field]: value
+      }
+    }));
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg shadow-xl max-w-4xl w-full mx-4 max-h-[90vh] overflow-y-auto">
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between p-6 border-b border-gray-200">
-          <div className="flex items-center gap-3">
-            <Building2 className="w-6 h-6 text-blue-600" />
+        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+          <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-xl font-semibold text-gray-900">Instance Settings</h2>
-              <p className="text-sm text-gray-600">{instance.institution_name}</p>
+              <h2 className="text-2xl font-bold">Instance Settings</h2>
+              <p className="text-blue-100 mt-1">{instance.name} - {instance.institution_name}</p>
             </div>
+            <button
+              onClick={onClose}
+              className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
+            >
+              <X className="w-6 h-6" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
-          >
-            <X className="w-5 h-5 text-gray-500" />
-          </button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex border-b border-gray-200">
-          {[
-            { id: 'basic', label: 'Basic Info', icon: Building2 },
-            { id: 'webhook', label: 'Webhook', icon: Link },
-            { id: 'branding', label: 'Branding', icon: Palette },
-            { id: 'advanced', label: 'Advanced', icon: Settings }
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-3 font-medium text-sm transition-colors flex items-center gap-2 ${
-                activeTab === tab.id
-                  ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-                  : 'text-gray-600 hover:text-gray-900'
-              }`}
-            >
-              <tab.icon className="w-4 h-4" />
-              {tab.label}
-            </button>
-          ))}
+        <div className="border-b border-gray-200 bg-gray-50">
+          <div className="flex space-x-1 p-4">
+            {[
+              { id: 'basic', label: 'Basic Info', icon: '⚙️' },
+              { id: 'branding', label: 'Branding', icon: '🎨' },
+              { id: 'webhook', label: 'Webhook', icon: '🔗' },
+              { id: 'content', label: 'Content', icon: '📄' }
+            ].map(tab => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id as any)}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
+                  activeTab === tab.id
+                    ? 'bg-blue-600 text-white'
+                    : 'text-gray-600 hover:bg-gray-200'
+                }`}
+              >
+                <span className="mr-2">{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit} className="p-6">
+        {/* Content */}
+        <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
           {error && (
-            <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6">
-              <p className="text-red-800">{error}</p>
+            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
+              <AlertCircle className="w-5 h-5 text-red-600" />
+              <span className="text-red-800">{error}</span>
             </div>
           )}
 
-          {/* Basic Information Tab */}
+          {/* Basic Info Tab */}
           {activeTab === 'basic' && (
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Instance Name *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Instance Name</label>
                   <input
                     type="text"
-                    required
-                    value={formData.name}
+                    value={editedInstance.name}
                     onChange={(e) => handleInputChange('name', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Institution Name *
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Institution Name</label>
                   <input
                     type="text"
-                    required
-                    value={formData.institution_name}
+                    value={editedInstance.institution_name}
                     onChange={(e) => handleInputChange('institution_name', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                 <textarea
-                  value={formData.description}
+                  value={editedInstance.description || ''}
                   onChange={(e) => handleInputChange('description', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   rows={3}
-                />
-              </div>
-
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="font-medium text-gray-900 mb-2">Shareable Link</h4>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    value={generateShareableLink()}
-                    readOnly
-                    className="flex-1 px-3 py-2 bg-white border border-gray-300 rounded-lg text-sm"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => copyToClipboard(generateShareableLink())}
-                    className="px-3 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 text-sm"
-                  >
-                    Copy
-                  </button>
-                </div>
-                
-                <div className="mt-3">
-                  <h4 className="font-medium text-gray-900 mb-2">QR Code</h4>
-                  <div className="flex items-center gap-4">
-                    <img 
-                      src={generateQRCode()} 
-                      alt="QR Code" 
-                      className="w-24 h-24 border border-gray-300 rounded-lg"
-                    />
-                    <div>
-                      <p className="text-sm text-gray-600 mb-2">
-                        Students can scan this QR code to access the simulation
-                      </p>
-                      <a
-                        href={generateQRCode()}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-blue-600 hover:text-blue-800"
-                      >
-                        Download QR Code
-                      </a>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Webhook Tab */}
-          {activeTab === 'webhook' && (
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Webhook URL
-                </label>
-                <input
-                  type="url"
-                  value={formData.webhook_url}
-                  onChange={(e) => handleInputChange('webhook_url', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="https://your-institution.com/webhook"
-                />
-                <p className="text-sm text-gray-500 mt-1">
-                  Completion data will be sent to this URL when students finish the simulation
-                </p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Webhook Secret
-                </label>
-                <input
-                  type="password"
-                  value={formData.webhook_secret}
-                  onChange={(e) => handleInputChange('webhook_secret', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Optional secret for webhook authentication"
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
                 />
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Retry Count
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Session Timeout (minutes)</label>
                   <input
                     type="number"
-                    min="1"
-                    max="10"
-                    value={formData.webhook_retry_count}
-                    onChange={(e) => handleInputChange('webhook_retry_count', parseInt(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={editedInstance.session_timeout_minutes}
+                    onChange={(e) => handleInputChange('session_timeout_minutes', parseInt(e.target.value))}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    min="5"
+                    max="480"
                   />
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Timeout (seconds)
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Max Sessions Per Day</label>
                   <input
                     type="number"
-                    min="5"
-                    max="120"
-                    value={formData.webhook_timeout_seconds}
-                    onChange={(e) => handleInputChange('webhook_timeout_seconds', parseInt(e.target.value))}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={editedInstance.max_sessions_per_day || ''}
+                    onChange={(e) => handleInputChange('max_sessions_per_day', e.target.value ? parseInt(e.target.value) : null)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    min="1"
                   />
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={editedInstance.is_active}
+                      onChange={(e) => handleInputChange('is_active', e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Active</span>
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={editedInstance.requires_approval}
+                      onChange={(e) => handleInputChange('requires_approval', e.target.checked)}
+                      className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
+                    />
+                    <span className="text-sm font-medium text-gray-700">Requires Approval</span>
+                  </label>
                 </div>
               </div>
             </div>
@@ -300,81 +200,70 @@ const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({
             <div className="space-y-6">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Primary Color
-                  </label>
-                  <div className="flex items-center gap-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Primary Color</label>
+                  <div className="flex gap-2">
                     <input
                       type="color"
-                      value={formData.primary_color}
-                      onChange={(e) => handleInputChange('primary_color', e.target.value)}
-                      className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
+                      value={editedInstance.branding_config.primary_color}
+                      onChange={(e) => handleBrandingChange('primary_color', e.target.value)}
+                      className="w-12 h-12 border border-gray-300 rounded-lg cursor-pointer"
                     />
                     <input
                       type="text"
-                      value={formData.primary_color}
-                      onChange={(e) => handleInputChange('primary_color', e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={editedInstance.branding_config.primary_color}
+                      onChange={(e) => handleBrandingChange('primary_color', e.target.value)}
+                      className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Secondary Color
-                  </label>
-                  <div className="flex items-center gap-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Secondary Color</label>
+                  <div className="flex gap-2">
                     <input
                       type="color"
-                      value={formData.secondary_color}
-                      onChange={(e) => handleInputChange('secondary_color', e.target.value)}
-                      className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
+                      value={editedInstance.branding_config.secondary_color}
+                      onChange={(e) => handleBrandingChange('secondary_color', e.target.value)}
+                      className="w-12 h-12 border border-gray-300 rounded-lg cursor-pointer"
                     />
                     <input
                       type="text"
-                      value={formData.secondary_color}
-                      onChange={(e) => handleInputChange('secondary_color', e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={editedInstance.branding_config.secondary_color}
+                      onChange={(e) => handleBrandingChange('secondary_color', e.target.value)}
+                      className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Accent Color
-                  </label>
-                  <div className="flex items-center gap-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Accent Color</label>
+                  <div className="flex gap-2">
                     <input
                       type="color"
-                      value={formData.accent_color}
-                      onChange={(e) => handleInputChange('accent_color', e.target.value)}
-                      className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
+                      value={editedInstance.branding_config.accent_color}
+                      onChange={(e) => handleBrandingChange('accent_color', e.target.value)}
+                      className="w-12 h-12 border border-gray-300 rounded-lg cursor-pointer"
                     />
                     <input
                       type="text"
-                      value={formData.accent_color}
-                      onChange={(e) => handleInputChange('accent_color', e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={editedInstance.branding_config.accent_color}
+                      onChange={(e) => handleBrandingChange('accent_color', e.target.value)}
+                      className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Background Color
-                  </label>
-                  <div className="flex items-center gap-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Background Color</label>
+                  <div className="flex gap-2">
                     <input
                       type="color"
-                      value={formData.background_color}
-                      onChange={(e) => handleInputChange('background_color', e.target.value)}
-                      className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
+                      value={editedInstance.branding_config.background_color}
+                      onChange={(e) => handleBrandingChange('background_color', e.target.value)}
+                      className="w-12 h-12 border border-gray-300 rounded-lg cursor-pointer"
                     />
                     <input
                       type="text"
-                      value={formData.background_color}
-                      onChange={(e) => handleInputChange('background_color', e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={editedInstance.branding_config.background_color}
+                      onChange={(e) => handleBrandingChange('background_color', e.target.value)}
+                      className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
@@ -382,119 +271,193 @@ const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Text Color
-                  </label>
-                  <div className="flex items-center gap-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Text Color</label>
+                  <div className="flex gap-2">
                     <input
                       type="color"
-                      value={formData.text_color}
-                      onChange={(e) => handleInputChange('text_color', e.target.value)}
-                      className="w-12 h-10 border border-gray-300 rounded-lg cursor-pointer"
+                      value={editedInstance.branding_config.text_color}
+                      onChange={(e) => handleBrandingChange('text_color', e.target.value)}
+                      className="w-12 h-12 border border-gray-300 rounded-lg cursor-pointer"
                     />
                     <input
                       type="text"
-                      value={formData.text_color}
-                      onChange={(e) => handleInputChange('text_color', e.target.value)}
-                      className="flex-1 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      value={editedInstance.branding_config.text_color}
+                      onChange={(e) => handleBrandingChange('text_color', e.target.value)}
+                      className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
                 </div>
-
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Font Family
-                  </label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Font Family</label>
                   <select
-                    value={formData.font_family}
-                    onChange={(e) => handleInputChange('font_family', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    value={editedInstance.branding_config.font_family}
+                    onChange={(e) => handleBrandingChange('font_family', e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                   >
-                    <option value="Inter, sans-serif">Inter</option>
-                    <option value="Roboto, sans-serif">Roboto</option>
-                    <option value="Open Sans, sans-serif">Open Sans</option>
-                    <option value="Lato, sans-serif">Lato</option>
-                    <option value="Poppins, sans-serif">Poppins</option>
+                    <option value="Inter">Inter</option>
+                    <option value="Roboto">Roboto</option>
+                    <option value="Open Sans">Open Sans</option>
+                    <option value="Lato">Lato</option>
+                    <option value="Montserrat">Montserrat</option>
+                    <option value="Poppins">Poppins</option>
                   </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Logo URL</label>
+                <input
+                  type="url"
+                  value={editedInstance.branding_config.logo_url || ''}
+                  onChange={(e) => handleBrandingChange('logo_url', e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://example.com/logo.png"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Custom CSS</label>
+                <textarea
+                  value={editedInstance.branding_config.custom_css || ''}
+                  onChange={(e) => handleBrandingChange('custom_css', e.target.value)}
+                  rows={6}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 font-mono text-sm resize-none"
+                  placeholder="/* Custom CSS styles */"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Webhook Tab */}
+          {activeTab === 'webhook' && (
+            <div className="space-y-6">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Webhook URL</label>
+                <input
+                  type="url"
+                  value={editedInstance.webhook_url || ''}
+                  onChange={(e) => handleInputChange('webhook_url', e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="https://example.com/webhook"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Webhook Secret</label>
+                <input
+                  type="password"
+                  value={editedInstance.webhook_secret || ''}
+                  onChange={(e) => handleInputChange('webhook_secret', e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                  placeholder="Secret key for webhook authentication"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Retry Count</label>
+                  <input
+                    type="number"
+                    value={editedInstance.webhook_retry_count}
+                    onChange={(e) => handleInputChange('webhook_retry_count', parseInt(e.target.value))}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    min="0"
+                    max="10"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Timeout (seconds)</label>
+                  <input
+                    type="number"
+                    value={editedInstance.webhook_timeout_seconds}
+                    onChange={(e) => handleInputChange('webhook_timeout_seconds', parseInt(e.target.value))}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    min="5"
+                    max="300"
+                  />
+                </div>
+              </div>
+
+              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                <h4 className="text-sm font-semibold text-blue-900 mb-2">Webhook Payload Format</h4>
+                <p className="text-sm text-blue-800 mb-2">
+                  The webhook will receive a POST request with the following JSON structure:
+                </p>
+                <pre className="text-xs text-blue-700 bg-blue-100 p-2 rounded overflow-x-auto">
+{`{
+  "instance_id": "uuid",
+  "institution_id": "string",
+  "session_id": "string",
+  "demographics": { ... },
+  "sessionData": { ... },
+  "responses": [ ... ],
+  "categoryScores": [ ... ],
+  "finalScore": 85,
+  "submissionTimestamp": "2024-01-01T00:00:00Z"
+}`}
+                </pre>
+              </div>
+            </div>
+          )}
+
+          {/* Content Tab */}
+          {activeTab === 'content' && (
+            <div className="space-y-6">
+              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-yellow-800 text-sm">
+                  <strong>Note:</strong> Content configuration is complex and requires JSON editing. 
+                  Advanced content management will be added in a future update.
+                </p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Scene Order</label>
+                <div className="bg-gray-100 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-2">Current scene order:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(editedInstance.content_config.scene_order || []).map((sceneId, index) => (
+                      <span key={sceneId} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                        {index + 1}. Scene {sceneId}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">Disabled Features</label>
+                <div className="bg-gray-100 p-4 rounded-lg">
+                  <p className="text-sm text-gray-600 mb-2">Currently disabled features:</p>
+                  <div className="flex flex-wrap gap-2">
+                    {(editedInstance.content_config.disabled_features || []).map((feature, index) => (
+                      <span key={index} className="px-2 py-1 bg-red-100 text-red-800 rounded text-sm">
+                        {feature}
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
           )}
+        </div>
 
-          {/* Advanced Tab */}
-          {activeTab === 'advanced' && (
-            <div className="space-y-6">
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.is_active}
-                    onChange={(e) => handleInputChange('is_active', e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Instance is active</span>
-                </label>
-              </div>
-
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={formData.requires_approval}
-                    onChange={(e) => handleInputChange('requires_approval', e.target.checked)}
-                    className="w-4 h-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">Requires approval</span>
-                </label>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Max Sessions Per Day
-                </label>
-                <input
-                  type="number"
-                  min="1"
-                  value={formData.max_sessions_per_day}
-                  onChange={(e) => handleInputChange('max_sessions_per_day', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Leave empty for unlimited"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Session Timeout (minutes)
-                </label>
-                <input
-                  type="number"
-                  min="30"
-                  max="480"
-                  value={formData.session_timeout_minutes}
-                  onChange={(e) => handleInputChange('session_timeout_minutes', parseInt(e.target.value))}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex items-center justify-end gap-3 pt-6 border-t border-gray-200 mt-6">
+        {/* Footer */}
+        <div className="border-t border-gray-200 p-6 bg-gray-50">
+          <div className="flex items-center justify-end gap-3">
             <button
-              type="button"
               onClick={onClose}
-              className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
             >
               Cancel
             </button>
             <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              onClick={handleSave}
+              disabled={saving}
+              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
             >
-              {loading ? (
+              {saving ? (
                 <>
-                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  <RefreshCw className="w-4 h-4 animate-spin" />
                   Saving...
                 </>
               ) : (
@@ -505,7 +468,7 @@ const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({
               )}
             </button>
           </div>
-        </form>
+        </div>
       </div>
     </div>
   );

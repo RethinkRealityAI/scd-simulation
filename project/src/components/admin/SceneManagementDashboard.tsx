@@ -12,7 +12,9 @@ import {
   Settings,
   Play,
   Save,
-  RefreshCw
+  RefreshCw,
+  Copy,
+  AlertTriangle
 } from 'lucide-react';
 import { SceneData } from '../../data/scenesData';
 import { useSceneData } from '../../hooks/useSceneData';
@@ -48,6 +50,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
   const [showCreateScene, setShowCreateScene] = useState(false);
   const [draggedScene, setDraggedScene] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [duplicating, setDuplicating] = useState<number | null>(null);
 
   // Load scenes
   useEffect(() => {
@@ -64,9 +67,23 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
     setShowCreateScene(true);
   };
 
-  const handleSceneCreated = (newScene: SceneData) => {
-    setScenes(prev => [...prev, newScene]);
-    addSceneToOrder(parseInt(newScene.id));
+  const handleSceneCreated = async (newScene: SceneData) => {
+    try {
+      // Save the scene configuration to the database
+      const success = await saveSceneConfiguration(newScene);
+      if (success) {
+        // Add to local state
+        setScenes(prev => [...prev, newScene]);
+        // Add to scene order
+        await addSceneToOrder(parseInt(newScene.id));
+        alert('Scene created successfully!');
+      } else {
+        alert('Failed to create scene. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error creating scene:', error);
+      alert(`Failed to create scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const handleEditScene = (scene: SceneData) => {
@@ -86,6 +103,52 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
         setScenes(prev => prev.filter(s => parseInt(s.id) !== sceneId));
         removeSceneFromOrder(sceneId);
       }
+    }
+  };
+
+  const handleDuplicateScene = async (scene: SceneData) => {
+    if (!canAddMoreScenes()) {
+      alert('Maximum number of scenes reached. Cannot duplicate scene.');
+      return;
+    }
+
+    setDuplicating(parseInt(scene.id));
+    
+    try {
+      // Find the next available scene ID
+      const existingIds = scenes.map(s => parseInt(s.id));
+      let newId = 1;
+      while (existingIds.includes(newId)) {
+        newId++;
+      }
+
+      if (newId > 20) {
+        alert('No available scene IDs. Maximum of 20 scenes allowed.');
+        return;
+      }
+
+      // Create a duplicate scene with new ID
+      const duplicatedScene: SceneData = {
+        ...scene,
+        id: newId.toString(),
+        title: `${scene.title} (Copy)`,
+        description: `${scene.description} - Duplicated from Scene ${scene.id}`
+      };
+
+      // Save the duplicated scene
+      const success = await saveSceneConfiguration(duplicatedScene);
+      if (success) {
+        setScenes(prev => [...prev, duplicatedScene]);
+        await addSceneToOrder(newId);
+        alert(`Scene duplicated successfully as Scene ${newId}!`);
+      } else {
+        alert('Failed to duplicate scene. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error duplicating scene:', error);
+      alert('Failed to duplicate scene. Please try again.');
+    } finally {
+      setDuplicating(null);
     }
   };
 
@@ -233,6 +296,59 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
 
       {/* Content */}
       <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+        {/* Statistics */}
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+          <div className="bg-blue-50 p-4 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+                <Settings className="w-5 h-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-blue-600 font-medium">Total Scenes</p>
+                <p className="text-2xl font-bold text-blue-900">{scenes.length}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-green-50 p-4 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-green-600 font-medium">Active Scenes</p>
+                <p className="text-2xl font-bold text-green-900">{sceneOrder.filter(s => s.is_active).length}</p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-purple-50 p-4 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                <Star className="w-5 h-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm text-purple-600 font-medium">Completion Scene</p>
+                <p className="text-2xl font-bold text-purple-900">
+                  {sceneOrder.find(s => s.is_completion_scene)?.scene_id || 'None'}
+                </p>
+              </div>
+            </div>
+          </div>
+          
+          <div className="bg-orange-50 p-4 rounded-lg">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
+                <AlertTriangle className="w-5 h-5 text-orange-600" />
+              </div>
+              <div>
+                <p className="text-sm text-orange-600 font-medium">Available Slots</p>
+                <p className="text-2xl font-bold text-orange-900">{20 - scenes.length}</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div className="space-y-4">
         {sortedScenes.map((scene, index) => {
           const orderItem = sceneOrder.find(s => s.scene_id === parseInt(scene.id));
@@ -321,6 +437,20 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                       title="Edit scene"
                     >
                       <Edit className="w-4 h-4" />
+                    </button>
+                    
+                    {/* Duplicate */}
+                    <button
+                      onClick={() => handleDuplicateScene(scene)}
+                      disabled={duplicating === parseInt(scene.id) || !canAddMoreScenes()}
+                      className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors disabled:opacity-30 disabled:cursor-not-allowed"
+                      title="Duplicate scene"
+                    >
+                      {duplicating === parseInt(scene.id) ? (
+                        <div className="w-4 h-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
+                      ) : (
+                        <Copy className="w-4 h-4" />
+                      )}
                     </button>
                     
                     {/* Delete */}

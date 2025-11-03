@@ -278,7 +278,6 @@ export function InstanceSimulationProvider({ children }: { children: React.React
           completion_time: payload.sessionData.completionTime,
           completed_scenes: payload.sessionData.completedScenes,
           start_time: new Date(payload.sessionData.startTime).toISOString(),
-          completion_time: new Date().toISOString(),
           submission_timestamp: payload.submissionTimestamp
         };
         

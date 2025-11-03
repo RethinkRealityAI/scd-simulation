@@ -103,6 +103,11 @@ export function useSimulationInstances() {
         instanceData.institution_id = generatedId;
       }
 
+      // Set created_by to 'admin' if not provided (for anonymous admin access)
+      if (!instanceData.created_by) {
+        instanceData.created_by = 'admin';
+      }
+
       const { data, error } = await supabase
         .from('simulation_instances')
         .insert([instanceData])
