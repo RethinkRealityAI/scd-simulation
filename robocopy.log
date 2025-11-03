@@ -1,0 +1,28 @@
+
+-------------------------------------------------------------------------------
+   ROBOCOPY     ::     Robust File Copy for Windows                              
+-------------------------------------------------------------------------------
+
+  Started : November 3, 2025 11:52:06 AM
+   Source : C:\Users\devel\OneDrive\Documents\SCAGO\YEP\SCD-simulation\project\
+     Dest : C:\Users\devel\OneDrive\Documents\SCAGO\YEP\SCD-simulation\scd-simulation\
+
+    Files : *.*
+	    
+  Options : *.* /NDL /NFL /S /E /COPYALL /PURGE /MIR /J /NP /R:1000000 /W:30 
+
+------------------------------------------------------------------------------
+
+ERROR : You do not have the Manage Auditing user right.
+*****  You need this to copy auditing information (/COPY:U or /COPYALL).
+
+       Simple Usage :: ROBOCOPY source destination /MIR
+
+             source :: Source Directory (drive:\path or \\server\share\path).
+        destination :: Destination Dir  (drive:\path or \\server\share\path).
+               /MIR :: Mirror a complete directory tree.
+
+    For more usage information run ROBOCOPY /?
+
+                                                          
+****  /MIR can DELETE files as well as copy them !
