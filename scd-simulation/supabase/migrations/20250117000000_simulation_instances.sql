@@ -96,12 +96,12 @@ CREATE TABLE IF NOT EXISTS public.instance_session_data (
   responses JSONB,
   category_scores JSONB,
   final_score INTEGER,
-  completion_time INTEGER,
+  completion_duration_seconds INTEGER,
   completed_scenes INTEGER[],
   
   -- Timestamps
   start_time TIMESTAMPTZ,
-  completion_time TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
   submission_timestamp TIMESTAMPTZ,
   
   -- Webhook status

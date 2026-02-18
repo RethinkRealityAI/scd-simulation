@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, RefreshCw, AlertCircle, CheckCircle } from 'lucide-react';
+import { X, Save, RefreshCw, AlertCircle } from 'lucide-react';
 import { SceneData } from '../../data/scenesData';
-import { useSceneData } from '../../hooks/useSceneData';
+import QuizQuestionsEditor from './QuizQuestionsEditor';
+import ActionPromptsEditor from './ActionPromptsEditor';
 
 interface SceneEditorModalProps {
   scene: SceneData;
@@ -23,7 +24,7 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
     try {
       setSaving(true);
       setError(null);
-      
+
       const success = await onSave(editedScene);
       if (success) {
         onClose();
@@ -36,6 +37,9 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
       setSaving(false);
     }
   };
+
+  // Debug logging
+  console.log('SceneEditorModal rendered', { scene, saving, error });
 
   const handleInputChange = (field: keyof SceneData, value: any) => {
     setEditedScene(prev => ({
@@ -51,13 +55,6 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
         ...prev.vitals,
         [field]: value
       }
-    }));
-  };
-
-  const handleArrayChange = (field: 'clinicalFindings' | 'discussionPrompts' | 'scoringCategories', value: string[]) => {
-    setEditedScene(prev => ({
-      ...prev,
-      [field]: value
     }));
   };
 
@@ -84,9 +81,9 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6">
+        <div className="bg-blue-600 text-white p-6 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold">Edit Scene Configuration</h2>
@@ -102,7 +99,7 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
         </div>
 
         {/* Tab Navigation */}
-        <div className="border-b border-gray-200 bg-gray-50">
+        <div className="border-b border-gray-200 bg-gray-50 flex-shrink-0">
           <div className="flex space-x-1 p-4">
             {[
               { id: 'basic', label: 'Basic Info', icon: '📝' },
@@ -114,11 +111,10 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === tab.id
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-200'
+                  }`}
               >
                 <span className="mr-2">{tab.icon}</span>
                 {tab.label}
@@ -128,7 +124,7 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+        <div className="flex-1 overflow-y-auto p-6 min-h-0">
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-red-600" />
@@ -148,7 +144,7 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
                   className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                 <textarea
@@ -393,55 +389,27 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
             </div>
           )}
 
-          {/* Quiz Tab */}
           {activeTab === 'quiz' && (
             <div className="space-y-6">
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-yellow-800 text-sm">
-                  <strong>Note:</strong> Quiz configuration is complex and requires JSON editing. 
-                  For now, this is handled by the static scene data. Advanced quiz editing will be added in a future update.
-                </p>
-              </div>
-              
-              {editedScene.quiz && (
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Current Quiz Configuration</h4>
-                  <div className="bg-gray-100 p-4 rounded-lg">
-                    <pre className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {JSON.stringify(editedScene.quiz, null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              )}
+              <QuizQuestionsEditor
+                questions={editedScene.quiz?.questions || []}
+                onChange={(questions) => handleInputChange('quiz', { questions })}
+              />
             </div>
           )}
 
-          {/* Prompts Tab */}
           {activeTab === 'prompts' && (
             <div className="space-y-6">
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-yellow-800 text-sm">
-                  <strong>Note:</strong> Action prompts configuration is complex and requires JSON editing. 
-                  For now, this is handled by the static scene data. Advanced prompt editing will be added in a future update.
-                </p>
-              </div>
-              
-              {editedScene.actionPrompt && (
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Current Action Prompt Configuration</h4>
-                  <div className="bg-gray-100 p-4 rounded-lg">
-                    <pre className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {JSON.stringify(editedScene.actionPrompt, null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              )}
+              <ActionPromptsEditor
+                actionPrompt={editedScene.actionPrompt}
+                onChange={(actionPrompt) => handleInputChange('actionPrompt', actionPrompt)}
+              />
             </div>
           )}
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 p-6 bg-gray-50">
+        <div className="border-t border-gray-200 p-6 bg-gray-50 flex-shrink-0">
           <div className="flex items-center justify-end gap-3">
             <button
               onClick={onClose}

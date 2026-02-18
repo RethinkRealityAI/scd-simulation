@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 
 export interface AnalyticsEntry {
   id: string;
   session_id: string;
+  instance_id?: string;
   user_demographics: {
     age: string;
     educationLevel: string;
@@ -67,46 +68,55 @@ export interface AnalyticsSummary {
   };
 }
 
-export function useAnalytics() {
+export function useAnalytics(instanceId?: string) {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsEntry[]>([]);
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchAnalytics = async (limit: number = 100) => {
+  const fetchAnalytics = useCallback(async (limit: number = 100) => {
     setLoading(true);
     setError(null);
-    
-    console.log('Fetching analytics from session_data table...');
-    
+
+    const tableName = instanceId ? 'instance_session_data' : 'session_data';
+    console.log(`Fetching analytics from ${tableName} table...`, { instanceId });
+
     try {
-      const { data, error: fetchError } = await supabase
-        .from('session_data')
+      let query = supabase
+        .from(tableName)
         .select('*')
         .order('submission_timestamp', { ascending: false })
         .limit(limit);
 
+      if (instanceId) {
+        query = query.eq('instance_id', instanceId);
+      }
+
+      const { data, error: fetchError } = await query;
+
       if (fetchError) {
-        console.error('Error fetching from session_data:', fetchError);
+        console.error(`Error fetching from ${tableName}:`, fetchError);
         throw fetchError;
       }
 
-      console.log('Fetched data from session_data:', data);
+      console.log(`Fetched data from ${tableName}:`, data);
 
       const formattedData: AnalyticsEntry[] = data?.map(entry => ({
         id: entry.id,
         session_id: entry.session_id,
+        instance_id: entry.instance_id,
         user_demographics: entry.user_demographics,
         responses: entry.responses,
         category_scores: entry.category_scores,
         final_score: entry.final_score,
-        completion_time: entry.completion_time,
+        // Handle schema difference: completion_time vs completion_duration_seconds
+        completion_time: entry.completion_time || entry.completion_duration_seconds || 0,
         completed_scenes: entry.completed_scenes,
         submission_timestamp: entry.submission_timestamp
       })) || [];
 
       setAnalyticsData(formattedData);
-      
+
       // Calculate summary statistics
       if (formattedData.length > 0) {
         const totalUsers = formattedData.length;
@@ -122,19 +132,19 @@ export function useAnalytics() {
 
         const categoryAverages = {
           timelyPainManagement: Math.round(
-            formattedData.reduce((acc, entry) => acc + (entry.category_scores.timelyPainManagement || 0), 0) / totalUsers
+            formattedData.reduce((acc, entry) => acc + (entry.category_scores?.timelyPainManagement || 0), 0) / totalUsers
           ),
           clinicalJudgment: Math.round(
-            formattedData.reduce((acc, entry) => acc + (entry.category_scores.clinicalJudgment || 0), 0) / totalUsers
+            formattedData.reduce((acc, entry) => acc + (entry.category_scores?.clinicalJudgment || 0), 0) / totalUsers
           ),
           communication: Math.round(
-            formattedData.reduce((acc, entry) => acc + (entry.category_scores.communication || 0), 0) / totalUsers
+            formattedData.reduce((acc, entry) => acc + (entry.category_scores?.communication || 0), 0) / totalUsers
           ),
           culturalSafety: Math.round(
-            formattedData.reduce((acc, entry) => acc + (entry.category_scores.culturalSafety || 0), 0) / totalUsers
+            formattedData.reduce((acc, entry) => acc + (entry.category_scores?.culturalSafety || 0), 0) / totalUsers
           ),
           biasMitigation: Math.round(
-            formattedData.reduce((acc, entry) => acc + (entry.category_scores.biasMitigation || 0), 0) / totalUsers
+            formattedData.reduce((acc, entry) => acc + (entry.category_scores?.biasMitigation || 0), 0) / totalUsers
           )
         };
 
@@ -145,6 +155,8 @@ export function useAnalytics() {
           averageCompletedScenes,
           categoryAverages
         });
+      } else {
+        setSummary(null);
       }
     } catch (err) {
       console.error('Error fetching analytics:', err);
@@ -152,21 +164,36 @@ export function useAnalytics() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [instanceId]);
 
   const insertAnalyticsEntry = async (data: Omit<AnalyticsEntry, 'id' | 'submission_timestamp'>) => {
     try {
+      // Determine table based on instanceId presence in data or hook prop
+      // Note: Usually data insertion happens in simulation context, but keeping this for completeness
+      const targetInstanceId = data.instance_id || instanceId;
+      const tableName = targetInstanceId ? 'instance_session_data' : 'session_data';
+
+      const payload: any = {
+        session_id: data.session_id,
+        user_demographics: data.user_demographics,
+        responses: data.responses,
+        category_scores: data.category_scores,
+        final_score: data.final_score,
+        completed_scenes: data.completed_scenes
+      };
+
+      if (targetInstanceId) {
+        payload.instance_id = targetInstanceId;
+        payload.completion_duration_seconds = data.completion_time;
+        payload.webhook_sent = false;
+        payload.webhook_attempts = 0;
+      } else {
+        payload.completion_time = data.completion_time;
+      }
+
       const { error: insertError } = await supabase
-        .from('session_data')
-        .insert({
-          session_id: data.session_id,
-          user_demographics: data.user_demographics,
-          responses: data.responses,
-          category_scores: data.category_scores,
-          final_score: data.final_score,
-          completion_time: data.completion_time,
-          completed_scenes: data.completed_scenes
-        });
+        .from(tableName)
+        .insert(payload);
 
       if (insertError) {
         throw insertError;
@@ -185,20 +212,31 @@ export function useAnalytics() {
   const getAnalyticsByDateRange = async (startDate: Date, endDate: Date) => {
     setLoading(true);
     setError(null);
-    
+
+    const tableName = instanceId ? 'instance_session_data' : 'session_data';
+
     try {
-      const { data, error: fetchError } = await supabase
-        .from('session_data')
+      let query = supabase
+        .from(tableName)
         .select('*')
         .gte('submission_timestamp', startDate.toISOString())
         .lte('submission_timestamp', endDate.toISOString())
         .order('submission_timestamp', { ascending: false });
 
+      if (instanceId) {
+        query = query.eq('instance_id', instanceId);
+      }
+
+      const { data, error: fetchError } = await query;
+
       if (fetchError) {
         throw fetchError;
       }
 
-      return data;
+      return data?.map(entry => ({
+        ...entry,
+        completion_time: entry.completion_time || entry.completion_duration_seconds || 0
+      })) || [];
     } catch (err) {
       console.error('Error fetching analytics by date range:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch analytics by date range');
@@ -212,7 +250,7 @@ export function useAnalytics() {
     if (!analyticsData.length) return {};
 
     const educationGroups = analyticsData.reduce((acc, entry) => {
-      const level = entry.user_demographics.educationLevel;
+      const level = entry.user_demographics?.educationLevel || 'Unknown';
       if (!acc[level]) {
         acc[level] = [];
       }
@@ -221,7 +259,7 @@ export function useAnalytics() {
     }, {} as Record<string, AnalyticsEntry[]>);
 
     const result: Record<string, { averageScore: number; count: number }> = {};
-    
+
     Object.entries(educationGroups).forEach(([level, entries]) => {
       result[level] = {
         averageScore: Math.round(
@@ -238,7 +276,7 @@ export function useAnalytics() {
     if (!analyticsData.length) return {};
 
     const ageGroups = analyticsData.reduce((acc, entry) => {
-      const age = entry.user_demographics.age;
+      const age = entry.user_demographics?.age || 'Unknown';
       if (!acc[age]) {
         acc[age] = [];
       }
@@ -247,7 +285,7 @@ export function useAnalytics() {
     }, {} as Record<string, AnalyticsEntry[]>);
 
     const result: Record<string, { averageScore: number; count: number }> = {};
-    
+
     Object.entries(ageGroups).forEach(([age, entries]) => {
       result[age] = {
         averageScore: Math.round(
@@ -260,10 +298,10 @@ export function useAnalytics() {
     return result;
   };
 
-  // Auto-fetch analytics on hook initialization
+  // Auto-fetch analytics on hook initialization or instanceId change
   useEffect(() => {
     fetchAnalytics();
-  }, []);
+  }, [fetchAnalytics]);
 
   return {
     analyticsData,

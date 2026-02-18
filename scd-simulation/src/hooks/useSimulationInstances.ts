@@ -59,10 +59,10 @@ export interface InstanceSessionData {
   responses: any;
   category_scores: any;
   final_score: number;
-  completion_time: number;
+  completion_duration_seconds: number;
   completed_scenes: number[];
   start_time: string;
-  completion_time: string;
+  completed_at: string;
   submission_timestamp: string;
   webhook_sent: boolean;
   webhook_attempts: number;
@@ -98,16 +98,23 @@ export function useSimulationInstances() {
     try {
       // Generate institution_id if not provided
       if (!instanceData.institution_id) {
-        const { data: generatedId, error: idError } = await supabase.rpc('generate_institution_id');
-        if (idError) throw idError;
-        instanceData.institution_id = generatedId;
+        try {
+          const { data: generatedId, error: idError } = await supabase.rpc('generate_institution_id');
+          if (idError) throw idError;
+          instanceData.institution_id = generatedId;
+        } catch (rpcError) {
+          console.warn('RPC generate_institution_id failed, falling back to client-side generation', rpcError);
+          // Fallback: Generate a random 8-char string
+          instanceData.institution_id = Math.random().toString(36).substring(2, 10).toUpperCase();
+        }
       }
 
-      // Set created_by to 'admin' if not provided (for anonymous admin access)
+      // Set created_by to null if not provided (for anonymous admin access)
       if (!instanceData.created_by) {
-        instanceData.created_by = 'admin';
+        delete instanceData.created_by;
       }
 
+      // ... existing code ...
       const { data, error } = await supabase
         .from('simulation_instances')
         .insert([instanceData])
@@ -115,149 +122,34 @@ export function useSimulationInstances() {
         .single();
 
       if (error) throw error;
-      
+
+      console.log('Instance created in DB:', data);
+
+      // Clone global scenes for the new instance
+      if (data) {
+        const { error: cloneError } = await supabase.rpc('clone_instance_scenes', {
+          target_instance_id: data.id
+        });
+
+        if (cloneError) {
+          console.error('Failed to clone scenes for new instance:', cloneError);
+        }
+      }
+
       // Create a default welcome configuration for the new instance
       try {
-        const defaultWelcomeConfig = {
-          background_image_url: 'https://i.ibb.co/BH6c7SRj/Splas.jpg',
-          background_blur: 0,
-          background_overlay_opacity: 70,
-          main_title: 'Sickle Cell Vaso-Occlusive Crisis Care Digital Simulation',
-          main_title_size: 'text-7xl',
-          gradient_title: 'Sickle Cell Vaso-Occlusive Crisis Care Digital Simulation',
-          gradient_colors: 'from-blue-400 via-purple-400 to-cyan-400',
-          subtitle: 'Enhance your cultural and medical competency when treating youth with sickle cell disease experiencing vaso-occlusive crises during hospital admission.',
-          subtitle_size: 'text-xl',
-          form_title: 'User Details',
-          form_subtitle: 'Please provide your information to begin',
-          form_backdrop_blur: 'backdrop-blur-xl',
-          form_background_opacity: 10,
-          form_border_opacity: 20,
-          input_backdrop_blur: 'backdrop-blur-sm',
-          input_border_opacity: 30,
-          button_gradient: 'from-blue-500 to-purple-500',
-          button_text: 'Begin Simulation',
-          features: [
-            {
-              icon: 'Stethoscope',
-              title: 'Interactive Scenarios',
-              description: 'Realistic patient scenarios with comprehensive assessment tools',
-              color: 'blue'
-            },
-            {
-              icon: 'Brain',
-              title: 'Evidence-Based Learning',
-              description: 'Focus on cultural sensitivity and treatment protocols',
-              color: 'purple'
-            },
-            {
-              icon: 'Target',
-              title: 'Real-Time Assessment',
-              description: 'Immediate feedback with performance analytics',
-              color: 'cyan'
-            }
-          ],
-          form_fields: {
-            education_level: {
-              label: 'Education Level',
-              required: true,
-              options: [
-                { value: 'nursing-diploma', label: 'Nursing Diploma' },
-                { value: 'associate-nursing', label: 'Associate Degree in Nursing' },
-                { value: 'bachelor-nursing', label: 'Bachelor of Science in Nursing' },
-                { value: 'master-nursing', label: 'Master of Science in Nursing' },
-                { value: 'md', label: 'Doctor of Medicine (MD)' },
-                { value: 'do', label: 'Doctor of Osteopathic Medicine (DO)' },
-                { value: 'resident', label: 'Medical Resident' },
-                { value: 'fellow', label: 'Medical Fellow' },
-                { value: 'attending', label: 'Attending Physician' },
-                { value: 'other', label: 'Other Healthcare Professional' }
-              ]
-            },
-            organization: {
-              label: 'Organization',
-              required: true,
-              placeholder: 'Enter your organization'
-            },
-            school: {
-              label: 'School',
-              required: true,
-              placeholder: 'Enter your school'
-            },
-            year: {
-              label: 'Year',
-              required: true,
-              options: [
-                { value: '1st-year', label: '1st Year' },
-                { value: '2nd-year', label: '2nd Year' },
-                { value: '3rd-year', label: '3rd Year' },
-                { value: '4th-year', label: '4th Year' },
-                { value: '5th-year', label: '5th Year' },
-                { value: 'graduate', label: 'Graduate' },
-                { value: 'post-graduate', label: 'Post-Graduate' },
-                { value: 'professional', label: 'Professional' }
-              ]
-            },
-            program: {
-              label: 'Program',
-              required: true,
-              placeholder: 'Enter your program'
-            },
-            field: {
-              label: 'Field',
-              required: true,
-              placeholder: 'Enter your field of study/work'
-            },
-            how_heard: {
-              label: 'How did you hear about this simulation?',
-              required: true,
-              options: [
-                { value: 'social-media', label: 'Social Media' },
-                { value: 'email', label: 'Email' },
-                { value: 'colleague', label: 'Colleague/Friend' },
-                { value: 'instructor', label: 'Instructor/Professor' },
-                { value: 'conference', label: 'Conference/Event' },
-                { value: 'website', label: 'Website' },
-                { value: 'search-engine', label: 'Search Engine' },
-                { value: 'other', label: 'Other' }
-              ]
-            }
-          },
-          data_collection_title: 'Data Collection',
-          data_collection_text: 'Within the digital simulation, participant responses will be collected and analysed to see how learners engage with different scenarios and decision points. This information will help highlight common misunderstandings, strengths, and areas where additional guidance is needed. The insights gained will be used to refine the simulation and guide future educational initiatives focused on sickle cell awareness and support.',
-          data_collection_footer: [
-            'This simulation is designed for healthcare education and research purposes.',
-            'All data is anonymized and contributes to improving sickle cell care education.'
-          ],
-          modal_enabled: true,
-          modal_steps: [
-            {
-              title: 'Welcome to the Simulation',
-              content_type: 'learning_objectives',
-              items: [
-                'Recognize clinical symptoms of vaso-occlusive crisis (VOC) and possible acute chest syndrome (ACS)',
-                'Assign interprofessional roles and coordinate care',
-                'Provide timely and evidence-based pain management',
-                'Communicate effectively with cultural humility',
-                'Identify and mitigate clinical bias and stigma in SCD care'
-              ]
-            }
-          ],
-          version: 1,
-          is_active: true
-        };
-
-        await supabase
-          .from('welcome_configurations')
-          .insert([defaultWelcomeConfig]);
+        // ... (welcome config code) ...
       } catch (welcomeError) {
         console.warn('Failed to create default welcome configuration:', welcomeError);
-        // Don't fail the instance creation if welcome config fails
       }
-      
-      setInstances(prev => [data, ...prev]);
+
+      setInstances(prev => {
+        console.log('Updating instances state. Previous count:', prev.length, 'New instance:', data.name);
+        return [data, ...prev];
+      });
       return data;
     } catch (err) {
+      console.error('Error in createInstance:', err);
       setError(err instanceof Error ? err.message : 'Failed to create instance');
       throw err;
     }
@@ -273,8 +165,8 @@ export function useSimulationInstances() {
         .single();
 
       if (error) throw error;
-      
-      setInstances(prev => prev.map(instance => 
+
+      setInstances(prev => prev.map(instance =>
         instance.id === id ? data : instance
       ));
       return data;
@@ -292,7 +184,7 @@ export function useSimulationInstances() {
         .eq('id', id);
 
       if (error) throw error;
-      
+
       setInstances(prev => prev.filter(instance => instance.id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete instance');
@@ -370,7 +262,7 @@ export function useAccessTokens(instanceId?: string) {
         .single();
 
       if (error) throw error;
-      
+
       setTokens(prev => [data, ...prev]);
       return data;
     } catch (err) {
@@ -389,8 +281,8 @@ export function useAccessTokens(instanceId?: string) {
         .single();
 
       if (error) throw error;
-      
-      setTokens(prev => prev.map(token => 
+
+      setTokens(prev => prev.map(token =>
         token.id === id ? data : token
       ));
       return data;
@@ -408,7 +300,7 @@ export function useAccessTokens(instanceId?: string) {
         .eq('id', id);
 
       if (error) throw error;
-      
+
       setTokens(prev => prev.filter(token => token.id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete token');
@@ -489,7 +381,7 @@ export function useInstanceSessionData(instanceId?: string) {
         .single();
 
       if (error) throw error;
-      
+
       setSessionData(prev => [result, ...prev]);
       return result;
     } catch (err) {
@@ -513,8 +405,8 @@ export function useInstanceSessionData(instanceId?: string) {
         .single();
 
       if (error) throw error;
-      
-      setSessionData(prev => prev.map(session => 
+
+      setSessionData(prev => prev.map(session =>
         session.id === id ? data : session
       ));
       return data;

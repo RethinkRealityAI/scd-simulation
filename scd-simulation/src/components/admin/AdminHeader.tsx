@@ -1,5 +1,5 @@
 import React from 'react';
-import { Building2, Settings, Users, BarChart3, Video, FileText, Palette, Home } from 'lucide-react';
+import { Building2, Settings, Users, BarChart3, Video, Palette, Home } from 'lucide-react';
 import InstitutionSelector from './InstitutionSelector';
 import { SimulationInstance } from '../../hooks/useSimulationInstances';
 
@@ -39,13 +39,7 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({
       description: 'Manage simulation videos and content',
       color: 'from-blue-500 to-cyan-500'
     },
-    {
-      id: 'scenes',
-      name: 'Scene List',
-      icon: FileText,
-      description: 'View and manage simulation scenes',
-      color: 'from-green-500 to-emerald-500'
-    },
+
     {
       id: 'scene-management',
       name: 'Scene Management',
@@ -85,7 +79,7 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({
             <h1 className="text-2xl font-bold text-gray-900">Admin Portal</h1>
             <p className="text-gray-600">Manage your simulation platform</p>
           </div>
-          
+
           {/* Institution Selector */}
           <div className="flex items-center gap-4">
             <InstitutionSelector
@@ -101,15 +95,15 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({
 
       {/* Institution Banner */}
       {selectedInstance && (
-        <div 
+        <div
           className="px-6 py-3 border-t"
-          style={{ 
+          style={{
             backgroundColor: selectedInstance.branding_config?.primary_color + '10',
             borderColor: selectedInstance.branding_config?.primary_color + '20'
           }}
         >
           <div className="flex items-center gap-3">
-            <div 
+            <div
               className="w-2 h-2 rounded-full"
               style={{ backgroundColor: selectedInstance.branding_config?.primary_color }}
             />
@@ -131,16 +125,15 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({
           {tabs.map((tab) => {
             const Icon = tab.icon;
             const isActive = activeTab === tab.id;
-            
+
             return (
               <button
                 key={tab.id}
                 onClick={() => onTabChange(tab.id)}
-                className={`flex items-center gap-2 px-4 py-3 rounded-t-lg transition-all duration-200 whitespace-nowrap ${
-                  isActive
-                    ? 'bg-white border-t-2 border-l-2 border-r-2 border-gray-200 text-gray-900 font-medium'
-                    : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
-                }`}
+                className={`flex items-center gap-2 px-4 py-3 rounded-t-lg transition-all duration-200 whitespace-nowrap ${isActive
+                  ? 'bg-white border-t-2 border-l-2 border-r-2 border-gray-200 text-gray-900 font-medium'
+                  : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50'
+                  }`}
               >
                 <Icon className="w-4 h-4" />
                 <span className="text-sm">{tab.name}</span>

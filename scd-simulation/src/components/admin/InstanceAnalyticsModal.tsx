@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { X, Download, RefreshCw, TrendingUp, Users, Clock, Award, BarChart3, Calendar, Filter } from 'lucide-react';
+import { X, Download, RefreshCw, TrendingUp, Users, Clock, Award, Filter } from 'lucide-react';
 import { SimulationInstance } from '../../hooks/useSimulationInstances';
+
 
 interface InstanceAnalyticsModalProps {
   instance: SimulationInstance;
@@ -162,9 +163,9 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] flex flex-col">
         {/* Header */}
-        <div className="bg-gradient-to-r from-green-600 to-blue-600 text-white p-6">
+        <div className="bg-blue-600 text-white p-6 flex-shrink-0">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold">Instance Analytics</h2>
@@ -202,7 +203,7 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
         </div>
 
         {/* Tab Navigation */}
-        <div className="border-b border-gray-200 bg-gray-50">
+        <div className="border-b border-gray-200 bg-gray-50 flex-shrink-0">
           <div className="flex space-x-1 p-4">
             {[
               { id: 'overview', label: 'Overview', icon: '📊' },
@@ -213,11 +214,10 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === tab.id
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-200'
+                  }`}
               >
                 <span className="mr-2">{tab.icon}</span>
                 {tab.label}
@@ -227,7 +227,7 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+        <div className="flex-1 overflow-y-auto p-6 min-h-0">
           {analytics && (
             <>
               {/* Overview Tab */}
@@ -391,7 +391,7 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
                   <div className="bg-white border border-gray-200 rounded-xl p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Performance Trends</h3>
                     <div className="space-y-4">
-                      {analytics.dailyStats.map((day, index) => (
+                      {analytics.dailyStats.map((day) => (
                         <div key={day.date} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
                           <div className="w-16 text-sm text-gray-600">
                             {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -419,7 +419,7 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
         </div>
 
         {/* Footer */}
-        <div className="border-t border-gray-200 p-6 bg-gray-50">
+        <div className="border-t border-gray-200 p-6 bg-gray-50 flex-shrink-0">
           <div className="flex items-center justify-between">
             <p className="text-sm text-gray-600">
               Data updated {new Date().toLocaleString()}

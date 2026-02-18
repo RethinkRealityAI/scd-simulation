@@ -17,6 +17,7 @@ const iconMap: { [key: string]: any } = {
 const InstanceWelcomeScreen: React.FC = () => {
   const { state, dispatch } = useInstanceSimulation();
   const { config, loading } = useWelcomeConfig();
+  const [activeConfig, setActiveConfig] = useState(config);
 
   const getColorClasses = (color: string) => {
     const colorMap: { [key: string]: { bg: string; icon: string } } = {
@@ -29,6 +30,7 @@ const InstanceWelcomeScreen: React.FC = () => {
     };
     return colorMap[color] || colorMap.blue;
   };
+
   const [educationLevel, setEducationLevel] = useState('');
   const [organization, setOrganization] = useState('');
   const [school, setSchool] = useState('');
@@ -39,52 +41,70 @@ const InstanceWelcomeScreen: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const navigate = useNavigate();
 
-  // Apply instance-specific branding
+  // Update activeConfig when global config loads
   useEffect(() => {
-    if (state.instance?.branding_config) {
-      const branding = state.instance.branding_config;
-      
-      // Apply CSS custom properties
-      const root = document.documentElement;
-      root.style.setProperty('--primary-color', branding.primary_color);
-      root.style.setProperty('--secondary-color', branding.secondary_color);
-      root.style.setProperty('--accent-color', branding.accent_color);
-      root.style.setProperty('--background-color', branding.background_color);
-      root.style.setProperty('--text-color', branding.text_color);
-      root.style.setProperty('--font-family', branding.font_family);
+    if (config) {
+      setActiveConfig(config);
+    }
+  }, [config]);
 
-      // Apply custom CSS if provided
-      if (branding.custom_css) {
-        const styleId = 'instance-custom-css';
-        let existingStyle = document.getElementById(styleId);
-        if (existingStyle) {
-          existingStyle.remove();
+  // Apply instance-specific branding and content
+  useEffect(() => {
+    if (state.instance) {
+      // Apply Branding
+      if (state.instance.branding_config) {
+        const branding = state.instance.branding_config;
+
+        // Apply CSS custom properties
+        const root = document.documentElement;
+        root.style.setProperty('--primary-color', branding.primary_color);
+        root.style.setProperty('--secondary-color', branding.secondary_color);
+        root.style.setProperty('--accent-color', branding.accent_color);
+        root.style.setProperty('--background-color', branding.background_color);
+        root.style.setProperty('--text-color', branding.text_color);
+        root.style.setProperty('--font-family', branding.font_family);
+
+        // Apply custom CSS if provided
+        if (branding.custom_css) {
+          const styleId = 'instance-custom-css';
+          let existingStyle = document.getElementById(styleId);
+          if (existingStyle) {
+            existingStyle.remove();
+          }
+
+          const style = document.createElement('style');
+          style.id = styleId;
+          style.textContent = branding.custom_css;
+          document.head.appendChild(style);
         }
-        
-        const style = document.createElement('style');
-        style.id = styleId;
-        style.textContent = branding.custom_css;
-        document.head.appendChild(style);
+      }
+
+      // Apply Content Configuration (Welcome Screen Override)
+      if (state.instance.content_config?.welcome_config) {
+        setActiveConfig(prev => ({
+          ...prev,
+          ...state.instance!.content_config.welcome_config
+        }));
       }
     }
-  }, [state.instance]);
+  }, [state.instance, config]);
 
   const isFormValid = () => {
     return (
-      (!config.form_fields.education_level.required || educationLevel) &&
-      (!config.form_fields.organization.required || organization) &&
-      (!config.form_fields.school.required || school) &&
-      (!config.form_fields.year.required || year) &&
-      (!config.form_fields.program.required || program) &&
-      (!config.form_fields.field.required || field) &&
-      (!config.form_fields.how_heard.required || howHeard)
+      (!activeConfig.form_fields.education_level.required || educationLevel) &&
+      (!activeConfig.form_fields.organization.required || organization) &&
+      (!activeConfig.form_fields.school.required || school) &&
+      (!activeConfig.form_fields.year.required || year) &&
+      (!activeConfig.form_fields.program.required || program) &&
+      (!activeConfig.form_fields.field.required || field) &&
+      (!activeConfig.form_fields.how_heard.required || howHeard)
     );
   };
 
   const handleFormSubmit = () => {
     if (!isFormValid()) return;
-    
-    if (config.modal_enabled) {
+
+    if (activeConfig.modal_enabled) {
       setShowModal(true);
     } else {
       handleStartSimulation();
@@ -94,18 +114,18 @@ const InstanceWelcomeScreen: React.FC = () => {
   const handleStartSimulation = () => {
     dispatch({
       type: 'INITIALIZE_USER',
-      payload: { 
-        educationLevel, 
-        organization, 
-        school, 
-        year, 
-        program, 
-        field, 
+      payload: {
+        educationLevel,
+        organization,
+        school,
+        year,
+        program,
+        field,
         howHeard,
         instanceId: state.instance?.id || ''
       }
     });
-    
+
     navigate(`/sim/${state.instance?.institution_id}/scene/1`);
   };
 
@@ -132,20 +152,20 @@ const InstanceWelcomeScreen: React.FC = () => {
   }
 
   return (
-    <div 
+    <div
       className="h-screen overflow-hidden relative"
       style={{
-        backgroundImage: `url(${config.background_image_url})`,
+        backgroundImage: `url(${activeConfig.background_image_url})`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat',
-        filter: config.background_blur > 0 ? `blur(${config.background_blur}px)` : 'none'
+        filter: activeConfig.background_blur > 0 ? `blur(${activeConfig.background_blur}px)` : 'none'
       }}
     >
       {/* Dark overlay with configurable opacity */}
-      <div 
+      <div
         className="absolute inset-0 bg-black"
-        style={{ opacity: config.background_overlay_opacity / 100 }}
+        style={{ opacity: activeConfig.background_overlay_opacity / 100 }}
       ></div>
 
       <div className="relative z-10 h-full flex">
@@ -154,23 +174,23 @@ const InstanceWelcomeScreen: React.FC = () => {
           <div className="max-w-2xl w-full">
             {/* Main Heading */}
             <div className="mb-8">
-              <h1 className={`${config.main_title_size} md:${config.main_title_size} font-bold text-white mb-4 leading-tight`}>
-                {config.main_title}
+              <h1 className={`${activeConfig.main_title_size} md:${activeConfig.main_title_size} font-bold text-white mb-4 leading-tight`}>
+                {activeConfig.main_title}
                 <br />
-                <span className={`bg-gradient-to-r ${config.gradient_colors} bg-clip-text text-transparent`}>
-                  {config.gradient_title}
+                <span className={`bg-gradient-to-r ${activeConfig.gradient_colors} bg-clip-text text-transparent`}>
+                  {activeConfig.gradient_title}
                 </span>
                 <br />
                 Digital Simulation
               </h1>
-              <p className={`${config.subtitle_size} text-gray-200 mb-6 leading-relaxed`}>
-                {config.subtitle}
+              <p className={`${activeConfig.subtitle_size} text-gray-200 mb-6 leading-relaxed`}>
+                {activeConfig.subtitle}
               </p>
             </div>
 
             {/* Features Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
-              {config.features.map((feature, index) => {
+              {activeConfig.features.map((feature, index) => {
                 const Icon = iconMap[feature.icon] || Stethoscope;
                 const colors = getColorClasses(feature.color);
                 return (
@@ -191,12 +211,12 @@ const InstanceWelcomeScreen: React.FC = () => {
         <div className="flex-1 flex flex-col items-center justify-center p-4 lg:p-6 relative">
           {/* Registration Form */}
           <div className="w-full max-w-xl">
-            <div 
-              className={`bg-white/${config.form_background_opacity} ${config.form_backdrop_blur} rounded-2xl p-6 border border-white/${config.form_border_opacity} shadow-2xl`}
+            <div
+              className={`bg-white/${activeConfig.form_background_opacity} ${activeConfig.form_backdrop_blur} rounded-2xl p-6 border border-white/${activeConfig.form_border_opacity} shadow-2xl`}
             >
               <div className="text-center mb-6">
-                <h3 className="text-xl font-bold text-white mb-2">{config.form_title}</h3>
-                <p className="text-gray-300 text-sm">{config.form_subtitle}</p>
+                <h3 className="text-xl font-bold text-white mb-2">{activeConfig.form_title}</h3>
+                <p className="text-gray-300 text-sm">{activeConfig.form_subtitle}</p>
               </div>
 
               <div className="space-y-6">
@@ -204,18 +224,18 @@ const InstanceWelcomeScreen: React.FC = () => {
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                   {/* Left Column */}
                   <div className="space-y-4">
-                    {config.form_fields.education_level.required && (
+                    {activeConfig.form_fields.education_level.required && (
                       <div>
                         <label className="block text-sm font-medium text-white mb-2">
-                          {config.form_fields.education_level.label}*
+                          {activeConfig.form_fields.education_level.label}*
                         </label>
                         <select
                           value={educationLevel}
                           onChange={(e) => setEducationLevel(e.target.value)}
-                          className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
+                          className={`w-full p-2 rounded-lg bg-white/${activeConfig.form_background_opacity} ${activeConfig.input_backdrop_blur} border border-white/${activeConfig.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
                         >
                           <option value="" className="bg-slate-800 text-white">Select your education level</option>
-                          {config.form_fields.education_level.options.map((option, index) => (
+                          {activeConfig.form_fields.education_level.options.map((option, index) => (
                             <option key={index} value={option.value} className="bg-slate-800 text-white">
                               {option.label}
                             </option>
@@ -224,32 +244,32 @@ const InstanceWelcomeScreen: React.FC = () => {
                       </div>
                     )}
 
-                    {config.form_fields.organization.required && (
+                    {activeConfig.form_fields.organization.required && (
                       <div>
                         <label className="block text-sm font-medium text-white mb-2">
-                          {config.form_fields.organization.label}*
+                          {activeConfig.form_fields.organization.label}*
                         </label>
                         <input
                           type="text"
                           value={organization}
                           onChange={(e) => setOrganization(e.target.value)}
-                          placeholder={config.form_fields.organization.placeholder}
-                          className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
+                          placeholder={activeConfig.form_fields.organization.placeholder}
+                          className={`w-full p-2 rounded-lg bg-white/${activeConfig.form_background_opacity} ${activeConfig.input_backdrop_blur} border border-white/${activeConfig.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
                         />
                       </div>
                     )}
 
-                    {config.form_fields.school.required && (
+                    {activeConfig.form_fields.school.required && (
                       <div>
                         <label className="block text-sm font-medium text-white mb-2">
-                          {config.form_fields.school.label}*
+                          {activeConfig.form_fields.school.label}*
                         </label>
                         <input
                           type="text"
                           value={school}
                           onChange={(e) => setSchool(e.target.value)}
-                          placeholder={config.form_fields.school.placeholder}
-                          className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
+                          placeholder={activeConfig.form_fields.school.placeholder}
+                          className={`w-full p-2 rounded-lg bg-white/${activeConfig.form_background_opacity} ${activeConfig.input_backdrop_blur} border border-white/${activeConfig.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
                         />
                       </div>
                     )}
@@ -257,18 +277,18 @@ const InstanceWelcomeScreen: React.FC = () => {
 
                   {/* Right Column */}
                   <div className="space-y-4">
-                    {config.form_fields.year.required && (
+                    {activeConfig.form_fields.year.required && (
                       <div>
                         <label className="block text-sm font-medium text-white mb-2">
-                          {config.form_fields.year.label}*
+                          {activeConfig.form_fields.year.label}*
                         </label>
                         <select
                           value={year}
                           onChange={(e) => setYear(e.target.value)}
-                          className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
+                          className={`w-full p-2 rounded-lg bg-white/${activeConfig.form_background_opacity} ${activeConfig.input_backdrop_blur} border border-white/${activeConfig.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
                         >
                           <option value="" className="bg-slate-800 text-white">Select your year</option>
-                          {config.form_fields.year.options.map((option, index) => (
+                          {activeConfig.form_fields.year.options.map((option, index) => (
                             <option key={index} value={option.value} className="bg-slate-800 text-white">
                               {option.label}
                             </option>
@@ -277,48 +297,48 @@ const InstanceWelcomeScreen: React.FC = () => {
                       </div>
                     )}
 
-                    {config.form_fields.program.required && (
+                    {activeConfig.form_fields.program.required && (
                       <div>
                         <label className="block text-sm font-medium text-white mb-2">
-                          {config.form_fields.program.label}*
+                          {activeConfig.form_fields.program.label}*
                         </label>
                         <input
                           type="text"
                           value={program}
                           onChange={(e) => setProgram(e.target.value)}
-                          placeholder={config.form_fields.program.placeholder}
-                          className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
+                          placeholder={activeConfig.form_fields.program.placeholder}
+                          className={`w-full p-2 rounded-lg bg-white/${activeConfig.form_background_opacity} ${activeConfig.input_backdrop_blur} border border-white/${activeConfig.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
                         />
                       </div>
                     )}
 
-                    {config.form_fields.field.required && (
+                    {activeConfig.form_fields.field.required && (
                       <div>
                         <label className="block text-sm font-medium text-white mb-2">
-                          {config.form_fields.field.label}*
+                          {activeConfig.form_fields.field.label}*
                         </label>
                         <input
                           type="text"
                           value={field}
                           onChange={(e) => setField(e.target.value)}
-                          placeholder={config.form_fields.field.placeholder}
-                          className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
+                          placeholder={activeConfig.form_fields.field.placeholder}
+                          className={`w-full p-2 rounded-lg bg-white/${activeConfig.form_background_opacity} ${activeConfig.input_backdrop_blur} border border-white/${activeConfig.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
                         />
                       </div>
                     )}
 
-                    {config.form_fields.how_heard.required && (
+                    {activeConfig.form_fields.how_heard.required && (
                       <div>
                         <label className="block text-sm font-medium text-white mb-2">
-                          {config.form_fields.how_heard.label}*
+                          {activeConfig.form_fields.how_heard.label}*
                         </label>
                         <select
                           value={howHeard}
                           onChange={(e) => setHowHeard(e.target.value)}
-                          className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
+                          className={`w-full p-2 rounded-lg bg-white/${activeConfig.form_background_opacity} ${activeConfig.input_backdrop_blur} border border-white/${activeConfig.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
                         >
                           <option value="" className="bg-slate-800 text-white">Select how you heard about this</option>
-                          {config.form_fields.how_heard.options.map((option, index) => (
+                          {activeConfig.form_fields.how_heard.options.map((option, index) => (
                             <option key={index} value={option.value} className="bg-slate-800 text-white">
                               {option.label}
                             </option>
@@ -334,13 +354,13 @@ const InstanceWelcomeScreen: React.FC = () => {
                   <button
                     onClick={handleFormSubmit}
                     disabled={!isFormValid()}
-                    className={`w-full py-3 px-6 rounded-lg bg-gradient-to-r ${config.button_gradient} text-white font-semibold text-base
+                    className={`w-full py-3 px-6 rounded-lg bg-gradient-to-r ${activeConfig.button_gradient} text-white font-semibold text-base
                              disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed
                              enabled:hover:from-blue-400 enabled:hover:to-purple-400 
                              transition-all duration-300 transform enabled:hover:scale-[1.02] enabled:hover:shadow-lg
                              flex items-center justify-center gap-2`}
                   >
-                    {config.button_text}
+                    {activeConfig.button_text}
                     <ArrowRight className="w-4 h-4" />
                   </button>
                 </div>
@@ -349,13 +369,13 @@ const InstanceWelcomeScreen: React.FC = () => {
               {/* Data Collection Footer */}
               <div className="text-center mt-6 space-y-3">
                 <div className="p-3 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10">
-                  <h4 className="text-white font-semibold mb-2 text-sm">{config.data_collection_title}</h4>
+                  <h4 className="text-white font-semibold mb-2 text-sm">{activeConfig.data_collection_title}</h4>
                   <p className="text-gray-300 text-xs leading-relaxed">
-                    {config.data_collection_text}
+                    {activeConfig.data_collection_text}
                   </p>
                 </div>
                 <div className="text-gray-400 text-xs">
-                  {config.data_collection_footer.map((text, index) => (
+                  {activeConfig.data_collection_footer.map((text, index) => (
                     <p key={index} className={index > 0 ? 'mt-1' : ''}>{text}</p>
                   ))}
                 </div>
@@ -366,8 +386,8 @@ const InstanceWelcomeScreen: React.FC = () => {
       </div>
 
       {/* Welcome Modal */}
-      {config.modal_enabled && (
-        <WelcomeModal 
+      {activeConfig.modal_enabled && (
+        <WelcomeModal
           isOpen={showModal}
           onClose={() => setShowModal(false)}
           onStart={handleStartSimulation}

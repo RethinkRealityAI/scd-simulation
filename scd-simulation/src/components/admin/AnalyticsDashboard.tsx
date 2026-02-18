@@ -1,12 +1,16 @@
 import React, { useState, useMemo } from 'react';
-import { BarChart3, Users, Clock, TrendingUp, Award, Target, RefreshCw, Grid, List, Search, Filter, Download } from 'lucide-react';
-import { useAnalytics } from '../../hooks/useAnalytics';
+import { BarChart3, Users, Clock, TrendingUp, Award, Target, RefreshCw, Grid, List, Search, Filter, Globe, Building2 } from 'lucide-react';
+import { useAnalytics, AnalyticsEntry } from '../../hooks/useAnalytics';
 import SessionCard from './SessionCard';
 import SessionDetailModal from './SessionDetailModal';
 
-const AnalyticsDashboard: React.FC = () => {
-  const { analyticsData, summary, loading, error, refetch } = useAnalytics();
-  const [selectedSession, setSelectedSession] = useState<any>(null);
+interface AnalyticsDashboardProps {
+  instanceId?: string;
+}
+
+const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) => {
+  const { analyticsData, summary, loading, error, refetch } = useAnalytics(instanceId);
+  const [selectedSession, setSelectedSession] = useState<AnalyticsEntry | null>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchTerm, setSearchTerm] = useState('');
   const [scoreFilter, setScoreFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
@@ -21,13 +25,13 @@ const AnalyticsDashboard: React.FC = () => {
       // Search filter
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
-        const matchesSearch = 
+        const matchesSearch =
           session.session_id.toLowerCase().includes(searchLower) ||
           session.user_demographics.age.toLowerCase().includes(searchLower) ||
           session.user_demographics.educationLevel.toLowerCase().includes(searchLower) ||
           (session.user_demographics.organization && session.user_demographics.organization.toLowerCase().includes(searchLower)) ||
           (session.user_demographics.school && session.user_demographics.school.toLowerCase().includes(searchLower));
-        
+
         if (!matchesSearch) return false;
       }
 
@@ -88,18 +92,34 @@ const AnalyticsDashboard: React.FC = () => {
   return (
     <div className="space-y-8 pb-8">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-xl border border-blue-200">
+      <div className={`p-6 rounded-xl border ${instanceId ? 'bg-indigo-50 border-indigo-200' : 'bg-gradient-to-r from-blue-50 to-purple-50 border-blue-200'}`}>
         <div className="flex items-center justify-between">
           <div>
+            <div className="flex items-center gap-2 mb-2">
+              {instanceId ? (
+                <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-full flex items-center gap-1">
+                  <Building2 className="w-3 h-3" />
+                  Instance Analytics
+                </span>
+              ) : (
+                <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1">
+                  <Globe className="w-3 h-3" />
+                  Global Analytics
+                </span>
+              )}
+            </div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
-              <BarChart3 className="w-6 h-6 text-blue-600" />
+              <BarChart3 className={`w-6 h-6 ${instanceId ? 'text-indigo-600' : 'text-blue-600'}`} />
               Analytics Dashboard
             </h2>
             <p className="text-gray-600">Monitor learner performance and simulation effectiveness</p>
           </div>
           <button
             onClick={() => refetch()}
-            className="px-4 py-2 bg-white border border-blue-300 text-blue-700 rounded-lg hover:bg-blue-50 transition-colors flex items-center gap-2"
+            className={`px-4 py-2 bg-white border rounded-lg transition-colors flex items-center gap-2 ${instanceId
+              ? 'border-indigo-300 text-indigo-700 hover:bg-indigo-50'
+              : 'border-blue-300 text-blue-700 hover:bg-blue-50'
+              }`}
           >
             <RefreshCw className="w-4 h-4" />
             Refresh
@@ -162,7 +182,7 @@ const AnalyticsDashboard: React.FC = () => {
             <Target className="w-5 h-5 text-blue-600" />
             Performance by Competency Domain
           </h3>
-          
+
           <div className="space-y-4">
             {[
               { key: 'timelyPainManagement', label: 'Timely Pain Management', color: 'orange' },
@@ -201,21 +221,19 @@ const AnalyticsDashboard: React.FC = () => {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-lg transition-colors ${
-                  viewMode === 'grid' 
-                    ? 'bg-blue-100 text-blue-600' 
-                    : 'text-gray-500 hover:bg-gray-100'
-                }`}
+                className={`p-2 rounded-lg transition-colors ${viewMode === 'grid'
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'text-gray-500 hover:bg-gray-100'
+                  }`}
               >
                 <Grid className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded-lg transition-colors ${
-                  viewMode === 'list' 
-                    ? 'bg-blue-100 text-blue-600' 
-                    : 'text-gray-500 hover:bg-gray-100'
-                }`}
+                className={`p-2 rounded-lg transition-colors ${viewMode === 'list'
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'text-gray-500 hover:bg-gray-100'
+                  }`}
               >
                 <List className="w-4 h-4" />
               </button>
@@ -242,13 +260,13 @@ const AnalyticsDashboard: React.FC = () => {
               {/* Score Filter */}
               <select
                 value={scoreFilter}
-                onChange={(e) => setScoreFilter(e.target.value as any)}
+                onChange={(e) => setScoreFilter(e.target.value as 'all' | 'high' | 'medium' | 'low')}
                 className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               >
                 <option value="all">All Scores</option>
                 <option value="high">High (80%+)</option>
                 <option value="medium">Medium (60-79%)</option>
-                <option value="low">Low (<60%)</option>
+                <option value="low">Low (&lt;60%)</option>
               </select>
 
               {/* Education Filter */}
@@ -276,7 +294,7 @@ const AnalyticsDashboard: React.FC = () => {
               </select>
             </div>
           </div>
-          
+
           {filteredData.length === 0 ? (
             <div className="text-center py-12">
               <Filter className="w-12 h-12 mx-auto mb-4 text-gray-400" />
@@ -309,8 +327,8 @@ const AnalyticsDashboard: React.FC = () => {
                 </thead>
                 <tbody>
                   {filteredData.slice(0, 10).map((entry, index) => (
-                    <tr 
-                      key={entry.id} 
+                    <tr
+                      key={entry.id}
                       className={`${index % 2 === 0 ? 'bg-gray-50' : ''} hover:bg-blue-50 transition-colors`}
                     >
                       <td className="py-3 px-4 text-sm text-gray-600">
@@ -372,4 +390,3 @@ const AnalyticsDashboard: React.FC = () => {
 };
 
 export default AnalyticsDashboard;
-

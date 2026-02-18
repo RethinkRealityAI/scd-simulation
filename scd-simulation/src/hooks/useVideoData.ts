@@ -13,34 +13,41 @@ interface VideoData {
   updated_at: string;
 }
 
-export const useVideoData = () => {
+export const useVideoData = (instanceId?: string) => {
   const [videos, setVideos] = useState<VideoData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchVideos();
-  }, []);
+  }, [instanceId]);
 
   const fetchVideos = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      console.log('Fetching videos from database...');
+
+      console.log('Fetching videos from database...', { instanceId });
       // Fetch videos from database
-      const { data, error } = await supabase
+      let query = supabase
         .from('simulation_videos')
         .select('*')
         .order('scene_id');
 
+      if (instanceId) {
+        query = query.eq('instance_id', instanceId);
+      } else {
+        query = query.is('instance_id', null);
+      }
+
+      const { data, error } = await query;
+
       if (error) {
         throw error;
       }
-      
+
       console.log('Videos fetched from database:', data?.length || 0, 'videos');
-      console.log('Video details:', data?.map(v => ({ scene_id: v.scene_id, title: v.title, has_url: !!v.video_url })));
-      
+
       setVideos(data || []);
     } catch (err) {
       console.error('Error fetching videos:', err);
@@ -53,29 +60,29 @@ export const useVideoData = () => {
   const uploadVideo = async (file: File, sceneId: number, title: string, description: string) => {
     try {
       setError(null);
-      
-      console.log('Starting upload validation:', { fileName: file.name, fileSize: file.size, fileType: file.type, sceneId });
-      
+
+      console.log('Starting upload validation:', { fileName: file.name, fileSize: file.size, fileType: file.type, sceneId, instanceId });
+
       // Validate file size (100MB limit)
       if (file.size > 52428800) { // 50MB
         const errorMsg = `File size is ${(file.size / 1048576).toFixed(2)}MB. Maximum size is 50MB. Please compress your video.`;
         console.error(errorMsg);
         throw new Error(errorMsg);
       }
-      
+
       // Validate file type
       if (!file.type.startsWith('video/')) {
         const errorMsg = `Invalid file type: ${file.type}. Please select a valid video file (MP4, MOV, WebM, etc.)`;
         console.error(errorMsg);
         throw new Error(errorMsg);
       }
-      
+
       // Generate unique filename
       const fileExt = file.name.split('.').pop();
-      const fileName = `scene-${sceneId}-${Date.now()}.${fileExt}`;
-      
+      const fileName = `scene-${sceneId}-${instanceId || 'global'}-${Date.now()}.${fileExt}`;
+
       console.log('✓ Validation passed. Starting upload:', { fileName, fileSize: `${(file.size / 1048576).toFixed(2)}MB`, sceneId });
-      
+
       // Upload video file to storage
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('simulation-videos')
@@ -98,24 +105,27 @@ export const useVideoData = () => {
 
       console.log('✓ Public URL generated:', publicUrl);
 
+      const videoData = {
+        scene_id: sceneId,
+        title,
+        description,
+        video_url: publicUrl,
+        instance_id: instanceId || null
+      };
+
       // Try to insert new record first
       const { data: insertData, error: insertError } = await supabase
         .from('simulation_videos')
-        .insert({
-          scene_id: sceneId,
-          title,
-          description,
-          video_url: publicUrl,
-        })
+        .insert(videoData)
         .select()
         .single();
 
       if (insertError) {
         console.log('⚠️ Insert failed (may already exist), attempting update:', insertError.code);
-        
+
         // If insert fails due to unique constraint, try update
         if (insertError.code === '23505') {
-          const { data: updateData, error: updateError } = await supabase
+          let updateQuery = supabase
             .from('simulation_videos')
             .update({
               title,
@@ -123,9 +133,15 @@ export const useVideoData = () => {
               video_url: publicUrl,
               updated_at: new Date().toISOString()
             })
-            .eq('scene_id', sceneId)
-            .select()
-            .single();
+            .eq('scene_id', sceneId);
+
+          if (instanceId) {
+            updateQuery = updateQuery.eq('instance_id', instanceId);
+          } else {
+            updateQuery = updateQuery.is('instance_id', null);
+          }
+
+          const { data: updateData, error: updateError } = await updateQuery.select().single();
 
           if (updateError) {
             console.error('❌ Database update failed:', updateError);
@@ -163,15 +179,22 @@ export const useVideoData = () => {
   const deleteVideo = async (sceneId: number) => {
     try {
       setError(null);
-      
+
       console.log('Starting delete process for scene:', sceneId);
-      
+
       // Get the video record first
-      const { data: video, error: fetchError } = await supabase
+      let query = supabase
         .from('simulation_videos')
         .select('*')
-        .eq('scene_id', sceneId)
-        .single();
+        .eq('scene_id', sceneId);
+
+      if (instanceId) {
+        query = query.eq('instance_id', instanceId);
+      } else {
+        query = query.is('instance_id', null);
+      }
+
+      const { data: video, error: fetchError } = await query.single();
 
       if (fetchError) {
         console.error('Fetch error:', fetchError);
@@ -184,15 +207,15 @@ export const useVideoData = () => {
         // Extract filename from URL
         const urlParts = video.video_url.split('/');
         const fileName = urlParts[urlParts.length - 1];
-        
+
         console.log('Attempting to delete file:', fileName);
-        
+
         if (fileName && fileName.includes('scene-')) {
           // Delete from storage
           const { error: storageError } = await supabase.storage
             .from('simulation-videos')
             .remove([fileName]);
-            
+
           if (storageError) {
             console.warn('Storage deletion warning:', storageError);
           } else {
@@ -202,10 +225,18 @@ export const useVideoData = () => {
       }
 
       // Delete from database
-      const { error: deleteError } = await supabase
+      let deleteQuery = supabase
         .from('simulation_videos')
         .delete()
         .eq('scene_id', sceneId);
+
+      if (instanceId) {
+        deleteQuery = deleteQuery.eq('instance_id', instanceId);
+      } else {
+        deleteQuery = deleteQuery.is('instance_id', null);
+      }
+
+      const { error: deleteError } = await deleteQuery;
 
       if (deleteError) {
         console.error('Database delete error:', deleteError);
@@ -213,7 +244,7 @@ export const useVideoData = () => {
       }
 
       console.log('Database record deleted successfully');
-      
+
       // Refresh videos list
       await fetchVideos();
     } catch (err) {
@@ -225,23 +256,23 @@ export const useVideoData = () => {
   };
 
   const updateVideo = async (
-    videoId: string, 
-    title: string, 
-    description: string, 
-    posterFile?: File,
-    videoFile?: File
+    videoId: string,
+    title: string,
+    description: string,
+    videoFile?: File,
+    posterFile?: File
   ) => {
     try {
       setError(null);
-      
+
       let posterUrl = '';
       let videoUrl = '';
-      
+
       // Upload new poster if provided
       if (posterFile) {
         const fileExt = posterFile.name.split('.').pop();
         const fileName = `poster-${videoId}-${Date.now()}.${fileExt}`;
-        
+
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('simulation-videos')
           .upload(fileName, posterFile, {
@@ -259,22 +290,22 @@ export const useVideoData = () => {
 
         posterUrl = publicUrl;
       }
-      
+
       // Upload new video if provided
       if (videoFile) {
         // Validate file size (50MB limit)
         if (videoFile.size > 52428800) {
           throw new Error('Video file size must be less than 50MB');
         }
-        
+
         // Validate file type
         if (!videoFile.type.startsWith('video/')) {
           throw new Error('Please select a valid video file');
         }
-        
+
         const fileExt = videoFile.name.split('.').pop();
         const fileName = `video-${videoId}-${Date.now()}.${fileExt}`;
-        
+
         const { data: uploadData, error: uploadError } = await supabase.storage
           .from('simulation-videos')
           .upload(fileName, videoFile, {
@@ -303,17 +334,20 @@ export const useVideoData = () => {
       if (posterUrl) {
         updateData.poster_url = posterUrl;
       }
-      
+
       if (videoUrl) {
         updateData.video_url = videoUrl;
       }
 
-      const { data, error: updateError } = await supabase
+      let updateQuery = supabase
         .from('simulation_videos')
         .update(updateData)
-        .eq('id', videoId)
-        .select()
-        .single();
+        .eq('id', videoId);
+
+      // We don't strictly need to filter by instance_id here since ID is unique, 
+      // but it's good practice for security if we had RLS policies checking it
+
+      const { data, error: updateError } = await updateQuery.select().single();
 
       if (updateError) {
         throw new Error(`Database update error: ${updateError.message}`);

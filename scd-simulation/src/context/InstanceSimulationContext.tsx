@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useReducer, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { SimulationInstance } from '../hooks/useSimulationInstances';
 
@@ -51,7 +51,8 @@ type InstanceSimulationAction =
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_INSTANCE'; payload: SimulationInstance }
-  | { type: 'RESET_SCENE_STATE' };
+  | { type: 'RESET_SCENE_STATE' }
+  | { type: 'RESET_SIMULATION' };
 
 const initialState: InstanceSimulationState = {
   userData: {
@@ -137,6 +138,11 @@ function instanceSimulationReducer(state: InstanceSimulationState, action: Insta
           responses: [],
         },
       };
+    case 'RESET_SIMULATION':
+      return {
+        ...initialState,
+        instance: state.instance, // Keep the instance loaded
+      };
     default:
       return state;
   }
@@ -144,15 +150,15 @@ function instanceSimulationReducer(state: InstanceSimulationState, action: Insta
 
 const calculateCategoryScores = (responses: UserResponse[]): CategoryScore[] => {
   const categoryStats: { [key: string]: { correct: number; total: number } } = {};
-  
+
   responses.forEach(response => {
     // Extract category from questionId (assuming format like "scene1_question1_category")
     const category = response.questionId.split('_').pop() || 'general';
-    
+
     if (!categoryStats[category]) {
       categoryStats[category] = { correct: 0, total: 0 };
     }
-    
+
     categoryStats[category].total++;
     if (response.isCorrect) {
       categoryStats[category].correct++;
@@ -192,7 +198,7 @@ export function InstanceSimulationProvider({ children }: { children: React.React
   const loadInstance = useCallback(async (institutionId: string): Promise<void> => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      
+
       const { data, error } = await supabase
         .from('simulation_instances')
         .select('*')
@@ -201,7 +207,7 @@ export function InstanceSimulationProvider({ children }: { children: React.React
         .single();
 
       if (error) throw error;
-      
+
       dispatch({ type: 'SET_INSTANCE', payload: data });
       dispatch({ type: 'SET_ERROR', payload: null });
     } catch (error) {
@@ -220,11 +226,11 @@ export function InstanceSimulationProvider({ children }: { children: React.React
 
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      
+
       const completionTime = Date.now() - state.userData.startTime;
       const score = calculateScore();
       const categoryScores = calculateCategoryScoresFunc();
-      
+
       const payload = {
         instance_id: state.instance.id,
         institution_id: state.instance.institution_id,
@@ -275,12 +281,12 @@ export function InstanceSimulationProvider({ children }: { children: React.React
             return acc;
           }, {} as Record<string, number>),
           final_score: payload.finalScore,
-          completion_time: payload.sessionData.completionTime,
+          completion_duration_seconds: Math.round(payload.sessionData.completionTime / 1000),
           completed_scenes: payload.sessionData.completedScenes,
           start_time: new Date(payload.sessionData.startTime).toISOString(),
-          submission_timestamp: payload.submissionTimestamp
+          completed_at: payload.submissionTimestamp
         };
-        
+
         const { error: dbError } = await supabase
           .from('instance_session_data')
           .insert(dbPayload);

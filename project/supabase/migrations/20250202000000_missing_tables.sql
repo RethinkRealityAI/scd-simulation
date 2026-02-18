@@ -261,3 +261,4 @@ COMMENT ON COLUMN public.scene_ordering.is_completion_scene IS 'Whether this sce
 COMMENT ON COLUMN public.scene_data.content_type IS 'Type of content (video, audio, image, text, interactive)';
 COMMENT ON COLUMN public.scene_data.content_data IS 'JSON data containing the actual content and metadata';
 
+

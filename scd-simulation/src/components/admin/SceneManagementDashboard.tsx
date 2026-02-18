@@ -1,20 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  GripVertical, 
-  Eye, 
-  Edit, 
-  Trash2, 
-  CheckCircle, 
+import {
+  Plus,
+  GripVertical,
+  Eye,
+  Edit,
+  Trash2,
+  CheckCircle,
   Star,
   ArrowUp,
   ArrowDown,
   Settings,
-  Play,
   Save,
   RefreshCw,
   Copy,
-  AlertTriangle
+  AlertTriangle,
+  Globe,
+  Building2
 } from 'lucide-react';
 import { SceneData } from '../../data/scenesData';
 import { useSceneData } from '../../hooks/useSceneData';
@@ -26,23 +27,24 @@ import ScenePreview from '../ScenePreview';
 
 interface SceneManagementDashboardProps {
   onClose?: () => void;
+  instanceId?: string;
+  instanceName?: string;
 }
 
-const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onClose }) => {
-  const { allScenes, loading: scenesLoading } = useAllSceneConfigs();
-  const { saveSceneConfiguration, deleteSceneConfiguration } = useSceneData();
-  const { 
-    sceneOrder, 
-    loading: orderLoading, 
-    updateSceneOrder, 
-    setCompletionScene, 
-    addSceneToOrder, 
+const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onClose, instanceId, instanceName }) => {
+  const { allScenes, loading: scenesLoading } = useAllSceneConfigs(instanceId);
+  const { saveSceneConfiguration, deleteSceneConfiguration } = useSceneData(instanceId);
+  const {
+    sceneOrder,
+    loading: orderLoading,
+    setCompletionScene,
+    addSceneToOrder,
     removeSceneFromOrder,
     reorderScenes,
     getOrderedScenes,
     canAddMoreScenes
   } = useSceneOrdering();
-  
+
   const [scenes, setScenes] = useState<SceneData[]>([]);
   const [selectedScene, setSelectedScene] = useState<SceneData | null>(null);
   const [showEditor, setShowEditor] = useState(false);
@@ -113,7 +115,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
     }
 
     setDuplicating(parseInt(scene.id));
-    
+
     try {
       // Find the next available scene ID
       const existingIds = scenes.map(s => parseInt(s.id));
@@ -164,32 +166,32 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
 
   const handleDrop = async (e: React.DragEvent, targetSceneId: number) => {
     e.preventDefault();
-    
+
     if (!draggedScene || draggedScene === targetSceneId) return;
 
     const orderedScenes = getOrderedScenes();
     const draggedIndex = orderedScenes.findIndex(s => s.scene_id === draggedScene);
     const targetIndex = orderedScenes.findIndex(s => s.scene_id === targetSceneId);
-    
+
     if (draggedIndex === -1 || targetIndex === -1) return;
 
     // Create new order array
     const newOrder = [...orderedScenes];
     const draggedItem = newOrder[draggedIndex];
-    
+
     // Remove dragged item
     newOrder.splice(draggedIndex, 1);
-    
+
     // Insert at new position
     const newTargetIndex = targetIndex > draggedIndex ? targetIndex - 1 : targetIndex;
     newOrder.splice(newTargetIndex, 0, draggedItem);
-    
+
     // Update display orders
     const reorderedItems = newOrder.map((item, index) => ({
       ...item,
       display_order: index + 1
     }));
-    
+
     await reorderScenes(reorderedItems);
     setDraggedScene(null);
   };
@@ -201,28 +203,28 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
   const handleMoveScene = async (sceneId: number, direction: 'up' | 'down') => {
     const orderedScenes = getOrderedScenes();
     const currentIndex = orderedScenes.findIndex(s => s.scene_id === sceneId);
-    
+
     if (
       (direction === 'up' && currentIndex > 0) ||
       (direction === 'down' && currentIndex < orderedScenes.length - 1)
     ) {
       const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-      
+
       // Create new order array
       const newOrder = [...orderedScenes];
       const currentItem = newOrder[currentIndex];
       const targetItem = newOrder[targetIndex];
-      
+
       // Swap items
       newOrder[currentIndex] = targetItem;
       newOrder[targetIndex] = currentItem;
-      
+
       // Update display orders
       const reorderedItems = newOrder.map((item, index) => ({
         ...item,
         display_order: index + 1
       }));
-      
+
       await reorderScenes(reorderedItems);
     }
   };
@@ -240,9 +242,11 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
     }
   };
 
-  const sortedScenes = getOrderedScenes()
+  const orderedScenesList = getOrderedScenes()
     .map(orderItem => scenes.find(s => parseInt(s.id) === orderItem.scene_id))
     .filter(Boolean) as SceneData[];
+
+  const sortedScenes = orderedScenesList.length > 0 ? orderedScenesList : scenes;
 
   if (scenesLoading || orderLoading) {
     return (
@@ -254,12 +258,44 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
 
   return (
     <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden">
+      {/* Warning Banner - Only show for Global */}
+      {!instanceId && (
+        <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-3 flex items-center gap-3">
+          <AlertTriangle className="w-5 h-5 text-yellow-600 flex-shrink-0" />
+          <div>
+            <p className="text-sm font-medium text-yellow-800">Global Scene Configuration</p>
+            <p className="text-xs text-yellow-700">
+              Changes made here affect the default simulation flow for ALL instances.
+              Select an instance from the top bar to edit scenes for a specific instance.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6">
         <div className="flex items-center justify-between">
           <div>
+            <div className="flex items-center gap-2 mb-2">
+              {instanceId ? (
+                <span className="px-2 py-1 bg-white/20 text-white text-xs font-medium rounded-full flex items-center gap-1 w-fit backdrop-blur-sm">
+                  <Building2 className="w-3 h-3" />
+                  Instance Scenes
+                </span>
+              ) : (
+                <span className="px-2 py-1 bg-white/20 text-white text-xs font-medium rounded-full flex items-center gap-1 w-fit backdrop-blur-sm">
+                  <Globe className="w-3 h-3" />
+                  Global Scenes
+                </span>
+              )}
+            </div>
             <h2 className="text-3xl font-bold">Scene Management</h2>
-            <p className="text-purple-100 mt-1">Manage scenes, ordering, and completion settings</p>
+            <p className="text-purple-100 mt-1">
+              {instanceId
+                ? `Managing scenes for: ${instanceName || 'Selected Instance'}`
+                : 'Manage global scene templates and ordering'
+              }
+            </p>
           </div>
           <div className="flex gap-3">
             <button
@@ -309,7 +345,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
               </div>
             </div>
           </div>
-          
+
           <div className="bg-green-50 p-4 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
@@ -321,7 +357,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
               </div>
             </div>
           </div>
-          
+
           <div className="bg-purple-50 p-4 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -335,7 +371,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
               </div>
             </div>
           </div>
-          
+
           <div className="bg-orange-50 p-4 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
@@ -350,10 +386,10 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
         </div>
 
         <div className="space-y-4">
-        {sortedScenes.map((scene, index) => {
-          const orderItem = sceneOrder.find(s => s.scene_id === parseInt(scene.id));
-          const isCompletionScene = orderItem?.is_completion_scene || false;
-            
+          {sortedScenes.map((scene, index) => {
+            const orderItem = sceneOrder.find(s => s.scene_id === parseInt(scene.id));
+            const isCompletionScene = orderItem?.is_completion_scene || false;
+
             return (
               <div
                 key={scene.id}
@@ -361,9 +397,8 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                 onDragStart={(e) => handleDragStart(e, parseInt(scene.id))}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, parseInt(scene.id))}
-                className={`bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-gray-200 rounded-xl p-4 transition-all hover:shadow-lg ${
-                  draggedScene === parseInt(scene.id) ? 'opacity-50' : ''
-                } ${isCompletionScene ? 'ring-2 ring-green-400 bg-green-50' : ''}`}
+                className={`bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-gray-200 rounded-xl p-4 transition-all hover:shadow-lg ${draggedScene === parseInt(scene.id) ? 'opacity-50' : ''
+                  } ${isCompletionScene ? 'ring-2 ring-green-400 bg-green-50' : ''}`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4 flex-1">
@@ -371,7 +406,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                     <div className="cursor-move text-gray-400 hover:text-gray-600">
                       <GripVertical className="w-5 h-5" />
                     </div>
-                    
+
                     {/* Scene Info */}
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
@@ -389,7 +424,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                       <p className="text-gray-600 text-sm mt-1">{scene.description}</p>
                     </div>
                   </div>
-                  
+
                   {/* Actions */}
                   <div className="flex items-center gap-2">
                     {/* Move Up/Down */}
@@ -407,20 +442,19 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                     >
                       <ArrowDown className="w-4 h-4" />
                     </button>
-                    
+
                     {/* Set as Completion Scene */}
                     <button
                       onClick={() => handleSetCompletionScene(parseInt(scene.id))}
-                      className={`p-2 rounded-lg transition-colors ${
-                        isCompletionScene 
-                          ? 'bg-green-100 text-green-600' 
-                          : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
-                      }`}
+                      className={`p-2 rounded-lg transition-colors ${isCompletionScene
+                        ? 'bg-green-100 text-green-600'
+                        : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                        }`}
                       title="Set as completion scene"
                     >
                       <Star className="w-4 h-4" />
                     </button>
-                    
+
                     {/* Preview */}
                     <button
                       onClick={() => handlePreviewScene(scene)}
@@ -429,7 +463,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                     >
                       <Eye className="w-4 h-4" />
                     </button>
-                    
+
                     {/* Edit */}
                     <button
                       onClick={() => handleEditScene(scene)}
@@ -438,7 +472,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                     >
                       <Edit className="w-4 h-4" />
                     </button>
-                    
+
                     {/* Duplicate */}
                     <button
                       onClick={() => handleDuplicateScene(scene)}
@@ -452,7 +486,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                         <Copy className="w-4 h-4" />
                       )}
                     </button>
-                    
+
                     {/* Delete */}
                     <button
                       onClick={() => handleDeleteScene(parseInt(scene.id))}
@@ -467,7 +501,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
             );
           })}
         </div>
-        
+
         {/* Empty State */}
         {sortedScenes.length === 0 && (
           <div className="text-center py-12">
@@ -494,7 +528,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
           onSceneCreated={handleSceneCreated}
         />
       )}
-      
+
       {showEditor && selectedScene && (
         <SceneEditorModal
           scene={selectedScene}
@@ -511,7 +545,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
           }}
         />
       )}
-      
+
       {showPreview && selectedScene && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">

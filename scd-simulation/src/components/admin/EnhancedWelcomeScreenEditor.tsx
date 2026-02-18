@@ -1,147 +1,131 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  DoorOpen, 
-  Save, 
-  Eye, 
-  Edit, 
-  Image, 
-  Type, 
-  Palette, 
-  FileText, 
-  Users, 
-  Database,
-  Download,
-  Upload,
-  RotateCcw,
-  Plus,
-  Trash2
-} from 'lucide-react';
+import { Building2, Globe, Edit, Eye, Upload, Download, Image, Type, Users, Save, Palette } from 'lucide-react';
 import { useWelcomeConfig, WelcomeConfiguration } from '../../hooks/useWelcomeConfig';
 import WelcomeScreenPreview from '../WelcomeScreenPreview';
 
 interface EnhancedWelcomeScreenEditorProps {
-  onMessage?: (msg: { type: 'success' | 'error'; text: string }) => void;
+  instanceId?: string;
 }
 
-const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = ({ onMessage }) => {
-  const { 
-    config: initialConfig, 
-    loading, 
-    saveWelcomeConfiguration, 
-    exportWelcomeConfiguration,
-    importWelcomeConfiguration,
-    resetToDefaults 
-  } = useWelcomeConfig();
-  
-  const [config, setConfig] = useState<WelcomeConfiguration>(initialConfig);
+const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = ({ instanceId }) => {
+  const { config: initialConfig, loading, saveWelcomeConfiguration, refreshConfig } = useWelcomeConfig(instanceId);
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
-  const [activeSection, setActiveSection] = useState<'visual' | 'content' | 'form' | 'modal'>('visual');
-  const [hasChanges, setHasChanges] = useState(false);
+  const [activeSection, setActiveSection] = useState<'visual' | 'content' | 'form'>('visual');
   const [saving, setSaving] = useState(false);
+  const [hasChanges, setHasChanges] = useState(false);
+  const [localConfig, setLocalConfig] = useState<WelcomeConfiguration | null>(null);
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
 
   useEffect(() => {
-    setConfig(initialConfig);
+    if (initialConfig) {
+      setLocalConfig(initialConfig);
+    }
   }, [initialConfig]);
 
-  const updateConfig = <K extends keyof WelcomeConfiguration>(key: K, value: WelcomeConfiguration[K]) => {
-    setConfig({ ...config, [key]: value });
+  const updateConfig = (key: keyof WelcomeConfiguration, value: WelcomeConfiguration[keyof WelcomeConfiguration]) => {
+    if (!localConfig) return;
+    setLocalConfig({ ...localConfig, [key]: value });
     setHasChanges(true);
   };
 
-  const updateNestedConfig = (path: string, value: any) => {
-    const keys = path.split('.');
-    const newConfig = { ...config };
-    let current: any = newConfig;
-    
-    for (let i = 0; i < keys.length - 1; i++) {
-      current[keys[i]] = { ...current[keys[i]] };
-      current = current[keys[i]];
+  const updateNestedConfig = (path: string, value: string | boolean | number) => {
+    if (!localConfig) return;
+
+    const parts = path.split('.');
+
+    if (parts.length === 2) {
+      const [parent, child] = parts;
+
+      if (parent === 'branding') {
+        setLocalConfig({
+          ...localConfig,
+          branding: { ...localConfig.branding, [child]: value }
+        });
+      } else if (parent === 'form_fields') {
+        // This shouldn't happen with current usage, but handle it
+        setLocalConfig({
+          ...localConfig,
+          [parent]: { ...localConfig[parent], [child]: value }
+        });
+      }
+    } else if (parts.length === 3) {
+      const [parent, field, prop] = parts;
+
+      if (parent === 'form_fields') {
+        setLocalConfig({
+          ...localConfig,
+          form_fields: {
+            ...localConfig.form_fields,
+            [field]: {
+              ...localConfig.form_fields[field as keyof typeof localConfig.form_fields],
+              [prop]: value
+            }
+          }
+        });
+      }
     }
-    
-    current[keys[keys.length - 1]] = value;
-    setConfig(newConfig);
+
     setHasChanges(true);
   };
 
   const handleSave = async () => {
+    if (!localConfig) return;
     setSaving(true);
+    setSaveMessage(null);
     try {
-      const success = await saveWelcomeConfiguration(config);
+      const success = await saveWelcomeConfiguration(localConfig);
       if (success) {
         setHasChanges(false);
-        onMessage?.({ type: 'success', text: 'Welcome screen configuration saved successfully!' });
+        setSaveMessage({ type: 'success', text: 'Configuration saved successfully!' });
+        setTimeout(() => setSaveMessage(null), 3000);
+        refreshConfig();
       } else {
-        onMessage?.({ type: 'error', text: 'Failed to save welcome screen configuration.' });
+        setSaveMessage({ type: 'error', text: 'Failed to save configuration. Please try again.' });
       }
+    } catch (error) {
+      console.error('Failed to save config:', error);
+      setSaveMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to save configuration' });
     } finally {
       setSaving(false);
     }
   };
 
-  const handleExport = async () => {
-    const jsonData = await exportWelcomeConfiguration();
-    if (jsonData) {
-      const blob = new Blob([jsonData], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `welcome-screen-config-${Date.now()}.json`;
-      a.click();
-      URL.revokeObjectURL(url);
-      onMessage?.({ type: 'success', text: 'Configuration exported successfully!' });
-    }
-  };
-
   const handleImport = () => {
+    // Placeholder for import functionality
     const input = document.createElement('input');
     input.type = 'file';
     input.accept = '.json';
-    input.onchange = async (e) => {
+    input.onchange = (e) => {
       const file = (e.target as HTMLInputElement).files?.[0];
       if (file) {
-        const text = await file.text();
-        const success = await importWelcomeConfiguration(text);
-        if (success) {
-          onMessage?.({ type: 'success', text: 'Configuration imported successfully!' });
-          setHasChanges(false);
-        } else {
-          onMessage?.({ type: 'error', text: 'Failed to import configuration.' });
-        }
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          try {
+            const importedConfig = JSON.parse(e.target?.result as string);
+            setLocalConfig({ ...importedConfig, instance_id: instanceId });
+            setHasChanges(true);
+          } catch (error) {
+            console.error('Invalid config file', error);
+          }
+        };
+        reader.readAsText(file);
       }
     };
     input.click();
   };
 
-  const handleReset = () => {
-    if (confirm('Are you sure you want to reset to default configuration? This will discard all unsaved changes.')) {
-      resetToDefaults();
-      setHasChanges(false);
-      onMessage?.({ type: 'success', text: 'Reset to default configuration.' });
-    }
+  const handleExport = () => {
+    if (!localConfig) return;
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(localConfig, null, 2));
+    const downloadAnchorNode = document.createElement('a');
+    downloadAnchorNode.setAttribute("href", dataStr);
+    downloadAnchorNode.setAttribute("download", "welcome_config.json");
+    document.body.appendChild(downloadAnchorNode);
+    downloadAnchorNode.click();
+    downloadAnchorNode.remove();
   };
 
-  const addFeature = () => {
-    const newFeatures = [...config.features, {
-      icon: 'Target',
-      title: 'New Feature',
-      description: 'Feature description',
-      color: 'blue'
-    }];
-    updateConfig('features', newFeatures);
-  };
-
-  const updateFeature = (index: number, field: string, value: string) => {
-    const newFeatures = [...config.features];
-    newFeatures[index] = { ...newFeatures[index], [field]: value };
-    updateConfig('features', newFeatures);
-  };
-
-  const deleteFeature = (index: number) => {
-    const newFeatures = config.features.filter((_, i) => i !== index);
-    updateConfig('features', newFeatures);
-  };
-
-  if (loading && !config) {
+  if (loading && !localConfig) {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
@@ -149,37 +133,53 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
     );
   }
 
+  if (!localConfig) return null;
+
+  // Use localConfig as config for rendering
+  const config = localConfig;
+
   return (
     <div className="h-full flex flex-col">
       {/* Tab Navigation with Title and Actions */}
-      <div className="flex items-center justify-between border-b border-gray-200 bg-gray-50/50 px-4 py-3 rounded-t-lg">
+      <div className={`flex items-center justify-between border-b border-gray-200 px-4 py-3 rounded-t-lg ${instanceId ? 'bg-indigo-50/50' : 'bg-gray-50/50'}`}>
         <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 mr-4">
+            {instanceId ? (
+              <span className="px-2 py-1 bg-indigo-100 text-indigo-700 text-xs font-medium rounded-full flex items-center gap-1">
+                <Building2 className="w-3 h-3" />
+                Instance Config
+              </span>
+            ) : (
+              <span className="px-2 py-1 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex items-center gap-1">
+                <Globe className="w-3 h-3" />
+                Global Config
+              </span>
+            )}
+          </div>
           <div className="flex gap-2">
             <button
               onClick={() => setActiveTab('edit')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
-                activeTab === 'edit'
-                  ? 'bg-blue-500 text-white shadow-sm'
-                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'edit'
+                ? 'bg-blue-500 text-white shadow-sm'
+                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}
             >
               <Edit className="w-4 h-4" />
               Edit Configuration
             </button>
             <button
               onClick={() => setActiveTab('preview')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
-                activeTab === 'preview'
-                  ? 'bg-blue-500 text-white shadow-sm'
-                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'preview'
+                ? 'bg-blue-500 text-white shadow-sm'
+                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}
             >
               <Eye className="w-4 h-4" />
               Live Preview
             </button>
           </div>
         </div>
-        
+
         {/* Quick Actions */}
         <div className="flex items-center gap-2">
           <button
@@ -196,15 +196,17 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
             <Download className="w-4 h-4" />
             Export
           </button>
-          <button
-            onClick={handleReset}
-            className="px-3 py-2 bg-gray-100 text-gray-700 border border-gray-300 rounded-lg hover:bg-gray-200 transition-colors flex items-center gap-2 text-sm font-medium"
-          >
-            <RotateCcw className="w-4 h-4" />
-            Reset
-          </button>
         </div>
       </div>
+
+      {/* Save Message Toast */}
+      {saveMessage && (
+        <div className={`fixed top-4 right-4 z-50 px-6 py-3 rounded-lg shadow-lg flex items-center gap-2 ${saveMessage.type === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'
+          }`}>
+          {saveMessage.type === 'success' ? '✓' : '✗'}
+          <span>{saveMessage.text}</span>
+        </div>
+      )}
 
       {/* Content */}
       {activeTab === 'edit' ? (
@@ -216,47 +218,33 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
               <div className="space-y-1">
                 <button
                   onClick={() => setActiveSection('visual')}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${
-                    activeSection === 'visual'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                  }`}
+                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${activeSection === 'visual'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    }`}
                 >
                   <Image className="w-4 h-4" />
                   <span className="font-medium">Visual Styling</span>
                 </button>
                 <button
                   onClick={() => setActiveSection('content')}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${
-                    activeSection === 'content'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                  }`}
+                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${activeSection === 'content'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    }`}
                 >
                   <Type className="w-4 h-4" />
                   <span className="font-medium">Content & Text</span>
                 </button>
                 <button
                   onClick={() => setActiveSection('form')}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${
-                    activeSection === 'form'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                  }`}
+                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${activeSection === 'form'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    }`}
                 >
                   <Users className="w-4 h-4" />
                   <span className="font-medium">Form Fields</span>
-                </button>
-                <button
-                  onClick={() => setActiveSection('modal')}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${
-                    activeSection === 'modal'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                  }`}
-                >
-                  <Database className="w-4 h-4" />
-                  <span className="font-medium">Welcome Modal</span>
                 </button>
               </div>
             </div>
@@ -278,8 +266,8 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
                       <label className="block text-sm font-medium text-gray-700 mb-2">Background Image URL</label>
                       <input
                         type="url"
-                        value={config.background_image_url}
-                        onChange={(e) => updateConfig('background_image_url', e.target.value)}
+                        value={config.branding.background_image || ''}
+                        onChange={(e) => updateNestedConfig('branding.background_image', e.target.value)}
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                         placeholder="https://example.com/image.jpg"
                       />
@@ -287,43 +275,33 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Background Blur (0-20px)
-                        </label>
-                        <input
-                          type="range"
-                          min="0"
-                          max="20"
-                          value={config.background_blur}
-                          onChange={(e) => updateConfig('background_blur', parseInt(e.target.value))}
-                          className="w-full"
-                        />
-                        <span className="text-sm text-gray-500">{config.background_blur}px</span>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Overlay Opacity (0-100%)
+                          Form BG Opacity (0-100%)
                         </label>
                         <input
                           type="range"
                           min="0"
                           max="100"
-                          value={config.background_overlay_opacity}
-                          onChange={(e) => updateConfig('background_overlay_opacity', parseInt(e.target.value))}
+                          value={parseInt(config.form_background_opacity) || 10}
+                          onChange={(e) => updateConfig('form_background_opacity', e.target.value)}
                           className="w-full"
                         />
-                        <span className="text-sm text-gray-500">{config.background_overlay_opacity}%</span>
+                        <span className="text-sm text-gray-500">{config.form_background_opacity}%</span>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Form Border Opacity
+                        </label>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={parseInt(config.form_border_opacity) || 20}
+                          onChange={(e) => updateConfig('form_border_opacity', e.target.value)}
+                          className="w-full"
+                        />
+                        <span className="text-sm text-gray-500">{config.form_border_opacity}%</span>
                       </div>
                     </div>
-                  </div>
-                </div>
-
-                {/* Form Styling */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                  <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
-                    <Palette className="w-4 h-4 text-purple-600" />
-                    Form Styling
-                  </h3>
-                  <div className="space-y-4">
                     <div>
                       <label className="block text-sm font-medium text-gray-700 mb-2">Form Backdrop Blur</label>
                       <select
@@ -339,73 +317,35 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
                         <option value="backdrop-blur-2xl">2X Large</option>
                       </select>
                     </div>
-                    <div className="grid grid-cols-3 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Form BG Opacity (0-100%)
-                        </label>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={config.form_background_opacity}
-                          onChange={(e) => updateConfig('form_background_opacity', parseInt(e.target.value))}
-                          className="w-full"
-                        />
-                        <span className="text-sm text-gray-500">{config.form_background_opacity}%</span>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Form Border Opacity
-                        </label>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={config.form_border_opacity}
-                          onChange={(e) => updateConfig('form_border_opacity', parseInt(e.target.value))}
-                          className="w-full"
-                        />
-                        <span className="text-sm text-gray-500">{config.form_border_opacity}%</span>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-medium text-gray-700 mb-2">
-                          Input Border Opacity
-                        </label>
-                        <input
-                          type="range"
-                          min="0"
-                          max="100"
-                          value={config.input_border_opacity}
-                          onChange={(e) => updateConfig('input_border_opacity', parseInt(e.target.value))}
-                          className="w-full"
-                        />
-                        <span className="text-sm text-gray-500">{config.input_border_opacity}%</span>
-                      </div>
-                    </div>
+                  </div>
+                </div>
+
+                {/* Branding Colors */}
+                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
+                  <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+                    <Palette className="w-4 h-4 text-purple-600" />
+                    Branding Colors
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Input Backdrop Blur</label>
-                      <select
-                        value={config.input_backdrop_blur}
-                        onChange={(e) => updateConfig('input_backdrop_blur', e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="backdrop-blur-none">None</option>
-                        <option value="backdrop-blur-sm">Small</option>
-                        <option value="backdrop-blur-md">Medium</option>
-                        <option value="backdrop-blur-lg">Large</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Button Gradient (Tailwind classes)</label>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Primary Color</label>
                       <input
                         type="text"
-                        value={config.button_gradient}
-                        onChange={(e) => updateConfig('button_gradient', e.target.value)}
+                        value={config.branding.primary_color}
+                        onChange={(e) => updateNestedConfig('branding.primary_color', e.target.value)}
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        placeholder="from-blue-500 to-purple-500"
+                        placeholder="blue"
                       />
-                      <p className="text-xs text-gray-500 mt-1">Example: from-blue-500 to-purple-500</p>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Secondary Color</label>
+                      <input
+                        type="text"
+                        value={config.branding.secondary_color}
+                        onChange={(e) => updateNestedConfig('branding.secondary_color', e.target.value)}
+                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                        placeholder="indigo"
+                      />
                     </div>
                   </div>
                 </div>
@@ -426,42 +366,9 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
                       <label className="block text-sm font-medium text-gray-700 mb-2">Main Title</label>
                       <input
                         type="text"
-                        value={config.main_title}
-                        onChange={(e) => updateConfig('main_title', e.target.value)}
+                        value={config.title}
+                        onChange={(e) => updateConfig('title', e.target.value)}
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Title Size</label>
-                      <select
-                        value={config.main_title_size}
-                        onChange={(e) => updateConfig('main_title_size', e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="text-4xl">Small (4xl)</option>
-                        <option value="text-5xl">Medium (5xl)</option>
-                        <option value="text-6xl">Large (6xl)</option>
-                        <option value="text-7xl">Extra Large (7xl)</option>
-                        <option value="text-8xl">2X Large (8xl)</option>
-                      </select>
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Gradient Title Text</label>
-                      <input
-                        type="text"
-                        value={config.gradient_title}
-                        onChange={(e) => updateConfig('gradient_title', e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Gradient Colors (Tailwind)</label>
-                      <input
-                        type="text"
-                        value={config.gradient_colors}
-                        onChange={(e) => updateConfig('gradient_colors', e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        placeholder="from-blue-400 via-purple-400 to-cyan-400"
                       />
                     </div>
                     <div>
@@ -473,99 +380,6 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
                         rows={3}
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Subtitle Size</label>
-                      <select
-                        value={config.subtitle_size}
-                        onChange={(e) => updateConfig('subtitle_size', e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="text-sm">Small</option>
-                        <option value="text-base">Base</option>
-                        <option value="text-lg">Large</option>
-                        <option value="text-xl">Extra Large</option>
-                        <option value="text-2xl">2X Large</option>
-                      </select>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Features Section */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                  <div className="flex items-center justify-between mb-3">
-                    <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
-                      <FileText className="w-4 h-4 text-purple-600" />
-                      Features Section
-                    </h3>
-                    <button
-                      onClick={addFeature}
-                      className="px-3 py-2 bg-green-100 text-green-700 rounded-lg hover:bg-green-200 transition-colors flex items-center gap-2 text-sm font-medium"
-                    >
-                      <Plus className="w-4 h-4" />
-                      Add Feature
-                    </button>
-                  </div>
-                  <div className="space-y-4">
-                    {config.features.map((feature, index) => (
-                      <div key={index} className="p-4 border border-gray-200 rounded-lg space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-gray-700">Feature {index + 1}</span>
-                          <button
-                            onClick={() => deleteFeature(index)}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <div className="grid grid-cols-2 gap-3">
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Icon</label>
-                            <select
-                              value={feature.icon}
-                              onChange={(e) => updateFeature(index, 'icon', e.target.value)}
-                              className="w-full p-2 border border-gray-300 rounded text-sm"
-                            >
-                              <option value="Stethoscope">Stethoscope</option>
-                              <option value="Brain">Brain</option>
-                              <option value="Target">Target</option>
-                            </select>
-                          </div>
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Color</label>
-                            <select
-                              value={feature.color}
-                              onChange={(e) => updateFeature(index, 'color', e.target.value)}
-                              className="w-full p-2 border border-gray-300 rounded text-sm"
-                            >
-                              <option value="blue">Blue</option>
-                              <option value="purple">Purple</option>
-                              <option value="cyan">Cyan</option>
-                              <option value="green">Green</option>
-                              <option value="red">Red</option>
-                              <option value="yellow">Yellow</option>
-                            </select>
-                          </div>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Title</label>
-                          <input
-                            type="text"
-                            value={feature.title}
-                            onChange={(e) => updateFeature(index, 'title', e.target.value)}
-                            className="w-full p-2 border border-gray-300 rounded text-sm"
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium text-gray-600 mb-1">Description</label>
-                          <textarea
-                            value={feature.description}
-                            onChange={(e) => updateFeature(index, 'description', e.target.value)}
-                            className="w-full p-2 border border-gray-300 rounded text-sm"
-                            rows={2}
-                          />
-                        </div>
-                      </div>
-                    ))}
                   </div>
                 </div>
 
@@ -591,40 +405,6 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
                         className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
                       />
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Button Text</label>
-                      <input
-                        type="text"
-                        value={config.button_text}
-                        onChange={(e) => updateConfig('button_text', e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* Data Collection Notice */}
-                <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                  <h3 className="text-base font-bold text-gray-900 mb-3">Data Collection Notice</h3>
-                  <div className="space-y-4">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
-                      <input
-                        type="text"
-                        value={config.data_collection_title}
-                        onChange={(e) => updateConfig('data_collection_title', e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-2">Main Text</label>
-                      <textarea
-                        value={config.data_collection_text}
-                        onChange={(e) => updateConfig('data_collection_text', e.target.value)}
-                        className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        rows={4}
-                      />
-                    </div>
                   </div>
                 </div>
               </>
@@ -638,7 +418,7 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
                   Form Fields Configuration
                 </h3>
                 <p className="text-sm text-gray-600 mb-6">
-                  Configure labels, placeholders, and field requirements. Note: Changing options requires modifying the config directly.
+                  Configure labels and field requirements.
                 </p>
                 <div className="space-y-6">
                   {Object.entries(config.form_fields).map(([key, field]) => (
@@ -656,17 +436,6 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
                             className="w-full p-2 border border-gray-300 rounded text-sm"
                           />
                         </div>
-                        {'placeholder' in field && (
-                          <div>
-                            <label className="block text-xs font-medium text-gray-600 mb-1">Placeholder</label>
-                            <input
-                              type="text"
-                              value={field.placeholder}
-                              onChange={(e) => updateNestedConfig(`form_fields.${key}.placeholder`, e.target.value)}
-                              className="w-full p-2 border border-gray-300 rounded text-sm"
-                            />
-                          </div>
-                        )}
                         <div className="flex items-center gap-2">
                           <input
                             type="checkbox"
@@ -680,28 +449,6 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-
-            {/* Modal Section */}
-            {activeSection === 'modal' && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <h3 className="text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
-                  <Database className="w-4 h-4 text-purple-600" />
-                  Welcome Modal Configuration
-                </h3>
-                <div className="mb-4 flex items-center gap-2">
-                  <input
-                    type="checkbox"
-                    checked={config.modal_enabled}
-                    onChange={(e) => updateConfig('modal_enabled', e.target.checked)}
-                    className="rounded"
-                  />
-                  <label className="text-sm font-medium text-gray-700">Enable Welcome Modal</label>
-                </div>
-                <p className="text-sm text-gray-600">
-                  Modal configuration is currently managed through code. Advanced modal customization coming soon.
-                </p>
               </div>
             )}
           </div>
@@ -739,4 +486,3 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
 };
 
 export default EnhancedWelcomeScreenEditor;
-
