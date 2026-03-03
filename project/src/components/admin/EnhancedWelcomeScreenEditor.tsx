@@ -713,7 +713,7 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
           <button
             onClick={handleSave}
             disabled={saving}
-            className="px-8 py-4 bg-gradient-to-r from-green-500 to-green-600 text-white rounded-xl hover:from-green-600 hover:to-green-700 font-bold text-lg transition-all flex items-center gap-3 shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-8 py-4 bg-green-600 text-white rounded-xl hover:bg-green-700 font-bold text-lg transition-all flex items-center gap-3 shadow-2xl disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {saving ? (
               <>

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { X, Building2, Link, Palette, Settings } from 'lucide-react';
+import { X, Building2, Link, Palette, Settings, Layers } from 'lucide-react';
 import { SimulationInstance } from '../../hooks/useSimulationInstances';
 
 interface CreateInstanceModalProps {
@@ -19,7 +19,8 @@ const CreateInstanceModal: React.FC<CreateInstanceModalProps> = ({ onClose, onCr
     accent_color: '#F59E0B',
     background_color: '#FFFFFF',
     text_color: '#1F2937',
-    font_family: 'Inter, sans-serif'
+    font_family: 'Inter, sans-serif',
+    scene_setup_mode: 'scratch' as 'template' | 'scratch',
   });
 
   const [loading, setLoading] = useState(false);
@@ -48,7 +49,8 @@ const CreateInstanceModal: React.FC<CreateInstanceModalProps> = ({ onClose, onCr
         content_config: {
           scene_order: [],
           custom_scenes: [],
-          disabled_features: []
+          disabled_features: [],
+          scene_setup_mode: formData.scene_setup_mode,
         },
         is_active: true,
         requires_approval: false,
@@ -145,6 +147,46 @@ const CreateInstanceModal: React.FC<CreateInstanceModalProps> = ({ onClose, onCr
             </div>
           </div>
 
+          {/* Scene Setup */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
+              <Layers className="w-5 h-5" />
+              Scene Setup
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => handleInputChange('scene_setup_mode', 'scratch')}
+                className={`text-left rounded-xl border-2 p-4 transition-all ${
+                  formData.scene_setup_mode === 'scratch'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div className="text-sm font-semibold text-gray-900">Start from Scratch</div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Creates an empty instance with no scenes. Add scenes directly in the scene builder.
+                </p>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleInputChange('scene_setup_mode', 'template')}
+                className={`text-left rounded-xl border-2 p-4 transition-all ${
+                  formData.scene_setup_mode === 'template'
+                    ? 'border-blue-500 bg-blue-50'
+                    : 'border-gray-200 bg-white hover:border-gray-300'
+                }`}
+              >
+                <div className="text-sm font-semibold text-gray-900">Use Base Template</div>
+                <p className="text-xs text-gray-500 mt-1">
+                  Copies global scene order/content into this instance so you can tweak in scene builder.
+                </p>
+              </button>
+            </div>
+          </div>
+
           {/* Webhook Configuration */}
           <div className="space-y-4">
             <h3 className="text-lg font-medium text-gray-900 flex items-center gap-2">
@@ -188,7 +230,28 @@ const CreateInstanceModal: React.FC<CreateInstanceModalProps> = ({ onClose, onCr
               <Palette className="w-5 h-5" />
               Branding Configuration
             </h3>
-            
+
+            {/* Live Preview Strip */}
+            <div className="rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+              <div className="p-3 text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-200">Live Preview</div>
+              <div className="p-4 flex items-center gap-3" style={{ backgroundColor: formData.background_color }}>
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-bold truncate" style={{ color: formData.text_color, fontFamily: formData.font_family }}>
+                    {formData.name || 'Instance Name'}
+                  </div>
+                  <div className="text-xs truncate" style={{ color: formData.text_color, opacity: 0.7, fontFamily: formData.font_family }}>
+                    {formData.institution_name || 'Institution'}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  {[formData.primary_color, formData.secondary_color, formData.accent_color].map((color, i) => (
+                    <div key={i} className="w-7 h-7 rounded-lg shadow-sm border border-gray-200" style={{ backgroundColor: color }} title={['Primary', 'Secondary', 'Accent'][i]} />
+                  ))}
+                </div>
+              </div>
+              <div className="h-1.5" style={{ backgroundColor: formData.primary_color }} />
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">

@@ -45,7 +45,7 @@ const ScoringCategoriesEditor: React.FC<ScoringCategoriesEditorProps> = ({ categ
   };
 
   return (
-    <div className="bg-gradient-to-r from-indigo-50 to-purple-50 p-6 rounded-xl border-2 border-indigo-200">
+    <div className="bg-indigo-50 p-6 rounded-xl border-2 border-indigo-200">
       <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
         <Target className="w-5 h-5 text-indigo-600" />
         Scoring Categories ({categories.length} selected)

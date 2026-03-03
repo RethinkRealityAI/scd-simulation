@@ -16,6 +16,13 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
   const [scoreFilter, setScoreFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const [educationFilter, setEducationFilter] = useState<string>('all');
   const [ageFilter, setAgeFilter] = useState<string>('all');
+  const categoryBarColors: Record<string, string> = {
+    orange: 'bg-orange-500',
+    blue: 'bg-blue-500',
+    green: 'bg-green-500',
+    purple: 'bg-purple-500',
+    pink: 'bg-pink-500',
+  };
 
   // Filter and search logic
   const filteredData = useMemo(() => {
@@ -92,7 +99,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
   return (
     <div className="space-y-8 pb-8">
       {/* Header */}
-      <div className="bg-gradient-to-r from-blue-50 to-purple-50 p-6 rounded-xl border border-blue-200">
+      <div className="bg-blue-50 p-6 rounded-xl border border-blue-200">
         <div className="flex items-center justify-between">
           <div>
             <h2 className="text-2xl font-bold text-gray-900 mb-2 flex items-center gap-2">
@@ -184,7 +191,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-3">
                     <div
-                      className={`h-3 rounded-full bg-gradient-to-r from-${category.color}-400 to-${category.color}-600 transition-all duration-500`}
+                      className={`h-3 rounded-full ${categoryBarColors[category.color] || 'bg-blue-500'} transition-all duration-500`}
                       style={{ width: `${score}%` }}
                     />
                   </div>

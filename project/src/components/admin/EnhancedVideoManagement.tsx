@@ -146,7 +146,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
       {/* Left Column - Controls & List */}
       <div className="w-2/5 flex flex-col gap-4 overflow-y-auto pr-2">
         {/* Scene Quick Navigation */}
-        <div className="bg-gradient-to-br from-blue-50 to-purple-50 rounded-lg shadow-sm border border-blue-100 p-3 flex-shrink-0">
+        <div className="bg-blue-50 rounded-lg shadow-sm border border-blue-100 p-3 flex-shrink-0">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Scene Navigation</h3>
             <div className="text-xs text-gray-600 bg-white px-2 py-0.5 rounded-full">
@@ -254,7 +254,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
             <button
               type="submit"
               disabled={uploading || !file}
-              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold text-sm transition-all shadow-md hover:shadow-lg"
+              className="w-full bg-blue-600 text-white py-3 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold text-sm transition-all shadow-md hover:shadow-lg"
             >
               {uploading ? (
                 <>
@@ -273,7 +273,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
 
         {/* Video List */}
         <div className="bg-white rounded-xl shadow-md border border-gray-200 flex-1 min-h-0 flex flex-col overflow-hidden">
-          <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-gray-50 to-blue-50 flex-shrink-0">
+          <div className="px-5 py-4 border-b border-gray-200 bg-blue-50 flex-shrink-0">
             <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
               <Video className="w-5 h-5 text-blue-600" />
               Uploaded Videos ({videos.length})
@@ -347,7 +347,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
 
       {/* Right Column - Preview */}
       <div className="flex-1 bg-white rounded-xl shadow-md border border-gray-200 overflow-hidden flex flex-col min-h-0">
-        <div className="px-5 py-4 border-b border-gray-200 bg-gradient-to-r from-purple-50 to-pink-50 flex-shrink-0">
+        <div className="px-5 py-4 border-b border-gray-200 bg-purple-50 flex-shrink-0">
           <h2 className="text-base font-bold text-gray-900 flex items-center gap-2">
             <Play className="w-5 h-5 text-purple-600" />
             Video Preview
@@ -446,9 +446,9 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
             </div>
           </div>
         ) : (
-          <div className="flex-1 flex items-center justify-center p-8 bg-gradient-to-br from-purple-50 via-white to-blue-50">
+          <div className="flex-1 flex items-center justify-center p-8 bg-blue-50">
             <div className="text-center max-w-md">
-              <div className="w-24 h-24 bg-gradient-to-br from-purple-100 to-blue-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+              <div className="w-24 h-24 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
                 <Play className="w-12 h-12 text-purple-600" />
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">No Video Selected</h3>
@@ -554,7 +554,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
                 <button
                   type="submit"
                   disabled={uploading}
-                  className="flex-1 bg-gradient-to-r from-blue-600 to-purple-600 text-white py-2.5 rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 font-medium transition-all flex items-center justify-center gap-2"
+                  className="flex-1 bg-blue-600 text-white py-2.5 rounded-lg hover:bg-blue-700 disabled:opacity-50 font-medium transition-all flex items-center justify-center gap-2"
                 >
                   {uploading ? (
                     <>

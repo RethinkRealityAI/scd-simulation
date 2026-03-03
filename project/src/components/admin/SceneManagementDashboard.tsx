@@ -5,7 +5,6 @@ import {
   Eye,
   Edit,
   Trash2,
-  CheckCircle,
   Star,
   ArrowUp,
   ArrowDown,
@@ -13,15 +12,31 @@ import {
   Save,
   RefreshCw,
   Copy,
-  AlertTriangle
+  HelpCircle,
+  MessageSquare,
+  FileText,
 } from 'lucide-react';
-import { SceneData } from '../../data/scenesData';
+import { SceneData, defaultSceneLayoutConfig, defaultVitalsDisplayConfig } from '../../data/scenesData';
 import { useSceneData } from '../../hooks/useSceneData';
 import { useAllSceneConfigs } from '../../hooks/useSceneConfig';
 import { useSceneOrdering } from '../../hooks/useSceneOrdering';
-import SceneEditorModal from './SceneEditorModal';
-import CreateSceneModal from './CreateSceneModal';
+import SceneBuilder from './sceneBuilder/SceneBuilder';
 import ScenePreview from '../ScenePreview';
+import ConfirmDialog from './ConfirmDialog';
+
+const ACTION_PROMPT_TYPE_LABELS: Record<string, string> = {
+  'action-selection': 'Action Select',
+  'multi-select': 'Multi-Select',
+  'reflection': 'Reflection',
+  'sbar': 'SBAR',
+};
+
+const ACTION_PROMPT_TYPE_COLORS: Record<string, string> = {
+  'action-selection': 'bg-purple-100 text-purple-800 border-purple-200',
+  'multi-select': 'bg-blue-100 text-blue-800 border-blue-200',
+  'reflection': 'bg-teal-100 text-teal-800 border-teal-200',
+  'sbar': 'bg-orange-100 text-orange-800 border-orange-200',
+};
 
 interface SceneManagementDashboardProps {
   onClose?: () => void;
@@ -45,17 +60,65 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
   const [scenes, setScenes] = useState<SceneData[]>([]);
   const [selectedScene, setSelectedScene] = useState<SceneData | null>(null);
   const [showEditor, setShowEditor] = useState(false);
+  const [initialBuilderMode, setInitialBuilderMode] = useState<'builder' | 'canvas'>('canvas');
   const [showPreview, setShowPreview] = useState(false);
-  const [showCreateScene, setShowCreateScene] = useState(false);
   const [draggedScene, setDraggedScene] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
   const [duplicating, setDuplicating] = useState<number | null>(null);
+  const [confirmDialog, setConfirmDialog] = useState<{
+    title: string;
+    message: string;
+    confirmLabel: string;
+    onConfirm: () => void;
+  } | null>(null);
+
+  const getNextAvailableSceneId = (): number => {
+    const existingIds = scenes.map(s => parseInt(s.id, 10));
+    let newId = 1;
+    while (existingIds.includes(newId)) {
+      newId++;
+    }
+    return newId;
+  };
+
+  const createDraftScene = (sceneId: number): SceneData => ({
+    id: sceneId.toString(),
+    title: `Scene ${sceneId}: Untitled`,
+    description: '',
+    videoUrl: '',
+    posterUrl: '',
+    videoSourceType: 'upload',
+    vitals: {
+      heartRate: 80,
+      systolic: 120,
+      diastolic: 80,
+      respiratoryRate: 16,
+      oxygenSaturation: 98,
+      temperature: 36.8,
+      painLevel: 0,
+      isAlarmOn: false,
+      patientName: 'Patient Name',
+      age: 30,
+      bedNumber: '001',
+      mrn: '00000000',
+      procedureTime: '',
+    },
+    vitalsDisplayConfig: { ...defaultVitalsDisplayConfig },
+    clinicalFindings: [],
+    discussionPrompts: [],
+    scoringCategories: [],
+    // Start with only header enabled; users compose the scene in builder.
+    layoutConfig: {
+      components: defaultSceneLayoutConfig.components.map(component => ({
+        ...component,
+        enabled: component.type === 'scene-header',
+      })),
+    },
+  });
 
   // Load scenes
   useEffect(() => {
-    if (allScenes.length > 0) {
-      setScenes(allScenes);
-    }
+    setScenes(allScenes);
   }, [allScenes]);
 
   const handleCreateNewScene = () => {
@@ -63,29 +126,18 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
       alert('Maximum number of scenes reached. Cannot create more scenes.');
       return;
     }
-    setShowCreateScene(true);
-  };
-
-  const handleSceneCreated = async (newScene: SceneData) => {
-    try {
-      // Save the scene configuration to the database
-      const success = await saveSceneConfiguration(newScene, instanceId);
-      if (success) {
-        // Add to local state
-        setScenes(prev => [...prev, newScene]);
-        // Add to scene order
-        await addSceneToOrder(parseInt(newScene.id), instanceId);
-        alert('Scene created successfully!');
-      } else {
-        alert('Failed to create scene. Please try again.');
-      }
-    } catch (error) {
-      console.error('Error creating scene:', error);
-      alert(`Failed to create scene: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    const newId = getNextAvailableSceneId();
+    if (newId > 20) {
+      alert('No available scene IDs. Maximum of 20 scenes allowed.');
+      return;
     }
+    setInitialBuilderMode('builder');
+    setSelectedScene(createDraftScene(newId));
+    setShowEditor(true);
   };
 
   const handleEditScene = (scene: SceneData) => {
+    setInitialBuilderMode('canvas');
     setSelectedScene(scene);
     setShowEditor(true);
   };
@@ -95,14 +147,20 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
     setShowPreview(true);
   };
 
-  const handleDeleteScene = async (sceneId: number) => {
-    if (window.confirm('Are you sure you want to delete this scene? This action cannot be undone.')) {
-      const success = await deleteSceneConfiguration(sceneId, instanceId);
-      if (success) {
-        setScenes(prev => prev.filter(s => parseInt(s.id) !== sceneId));
-        removeSceneFromOrder(sceneId, instanceId);
-      }
-    }
+  const handleDeleteScene = (sceneId: number, sceneTitle: string) => {
+    setConfirmDialog({
+      title: 'Delete Scene',
+      message: `Are you sure you want to delete "${sceneTitle}"? This action cannot be undone.`,
+      confirmLabel: 'Delete Scene',
+      onConfirm: async () => {
+        setConfirmDialog(null);
+        const success = await deleteSceneConfiguration(sceneId, instanceId);
+        if (success) {
+          setScenes(prev => prev.filter(s => parseInt(s.id) !== sceneId));
+          removeSceneFromOrder(sceneId, instanceId);
+        }
+      },
+    });
   };
 
   const handleDuplicateScene = async (scene: SceneData) => {
@@ -252,101 +310,53 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
   }
 
   return (
-    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-7xl max-h-[90vh] overflow-hidden">
-      {/* Header */}
-      <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6">
-        <div className="flex items-center justify-between">
+    <div className="bg-white rounded-xl shadow-sm w-full max-h-[90vh] overflow-hidden border border-gray-200">
+      {/* Compact Header */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-white">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center flex-shrink-0">
+            <Settings className="w-4 h-4 text-white" />
+          </div>
           <div>
-            <h2 className="text-3xl font-bold">Scene Management</h2>
-            <p className="text-purple-100 mt-1">Manage scenes, ordering, and completion settings</p>
+            <h2 className="text-sm font-semibold text-gray-900">Scene Management</h2>
+            <p className="text-[10px] text-gray-500">Manage scenes, ordering, and completion</p>
           </div>
-          <div className="flex gap-3">
-            <button
-              onClick={handleSaveOrder}
-              disabled={saving}
-              className="px-4 py-2 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50"
-            >
-              {saving ? (
-                <RefreshCw className="w-4 h-4 animate-spin" />
-              ) : (
-                <Save className="w-4 h-4" />
-              )}
-              Save Order
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleSaveOrder}
+            disabled={saving}
+            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
+          >
+            {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+            Save Order
+          </button>
+          <button
+            onClick={handleCreateNewScene}
+            disabled={!canAddMoreScenes()}
+            className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Scene
+          </button>
+          {onClose && (
+            <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors">
+              ✕
             </button>
-            <button
-              onClick={handleCreateNewScene}
-              disabled={!canAddMoreScenes()}
-              className="px-4 py-2 bg-white/20 hover:bg-white/30 text-white rounded-lg font-medium transition-colors flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
-            >
-              <Plus className="w-4 h-4" />
-              Add Scene
-            </button>
-            {onClose && (
-              <button
-                onClick={onClose}
-                className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
-              >
-                ✕
-              </button>
-            )}
-          </div>
+          )}
         </div>
       </div>
 
+      {/* Compact stats strip */}
+      <div className="flex items-center gap-5 px-4 py-2 border-b border-gray-100 bg-gray-50/50 text-[10px] text-gray-500 flex-wrap">
+        <span className="flex items-center gap-1"><span className="text-sm font-bold text-blue-600">{scenes.length}</span> Scenes</span>
+        <span className="flex items-center gap-1"><span className="text-sm font-bold text-emerald-600">{sceneOrder.filter(s => s.is_active).length}</span> Active</span>
+        <span className="flex items-center gap-1"><span className="text-sm font-bold text-purple-600">{sceneOrder.find(s => s.is_completion_scene)?.scene_id || '—'}</span> Completion</span>
+        <span className="flex items-center gap-1"><span className="text-sm font-bold text-amber-600">{20 - scenes.length}</span> Slots left</span>
+      </div>
+
       {/* Content */}
-      <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-        {/* Statistics */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
-                <Settings className="w-5 h-5 text-blue-600" />
-              </div>
-              <div>
-                <p className="text-sm text-blue-600 font-medium">Total Scenes</p>
-                <p className="text-2xl font-bold text-blue-900">{scenes.length}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-green-50 p-4 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
-                <CheckCircle className="w-5 h-5 text-green-600" />
-              </div>
-              <div>
-                <p className="text-sm text-green-600 font-medium">Active Scenes</p>
-                <p className="text-2xl font-bold text-green-900">{sceneOrder.filter(s => s.is_active).length}</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-purple-50 p-4 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
-                <Star className="w-5 h-5 text-purple-600" />
-              </div>
-              <div>
-                <p className="text-sm text-purple-600 font-medium">Completion Scene</p>
-                <p className="text-2xl font-bold text-purple-900">
-                  {sceneOrder.find(s => s.is_completion_scene)?.scene_id || 'None'}
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="bg-orange-50 p-4 rounded-lg">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
-                <AlertTriangle className="w-5 h-5 text-orange-600" />
-              </div>
-              <div>
-                <p className="text-sm text-orange-600 font-medium">Available Slots</p>
-                <p className="text-2xl font-bold text-orange-900">{20 - scenes.length}</p>
-              </div>
-            </div>
-          </div>
-        </div>
+      <div className="p-4 overflow-y-auto max-h-[calc(90vh-100px)]">
 
         <div className="space-y-4">
           {sortedScenes.map((scene, index) => {
@@ -360,7 +370,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                 onDragStart={(e) => handleDragStart(e, parseInt(scene.id))}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, parseInt(scene.id))}
-                className={`bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-gray-200 rounded-xl p-4 transition-all hover:shadow-lg ${draggedScene === parseInt(scene.id) ? 'opacity-50' : ''
+                className={`bg-gray-50 border-2 border-gray-200 rounded-xl p-4 transition-all hover:shadow-lg ${draggedScene === parseInt(scene.id) ? 'opacity-50' : ''
                   } ${isCompletionScene ? 'ring-2 ring-green-400 bg-green-50' : ''}`}
               >
                 <div className="flex items-center justify-between">
@@ -372,19 +382,38 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
 
                     {/* Scene Info */}
                     <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
+                      <div className="flex items-center gap-2 mb-2 flex-wrap">
                         <span className="bg-blue-100 text-blue-800 px-3 py-1 rounded-full text-sm font-medium">
                           Scene {scene.id}
                         </span>
                         {isCompletionScene && (
                           <span className="bg-green-100 text-green-800 px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1">
                             <Star className="w-3 h-3" />
-                            Completion Scene
+                            Completion
+                          </span>
+                        )}
+                        {/* Interaction status badges */}
+                        {scene.quiz?.questions && scene.quiz.questions.length > 0 && (
+                          <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-100 text-indigo-800 border border-indigo-200">
+                            <HelpCircle className="w-3 h-3" />
+                            Quiz: {scene.quiz.questions.length} {scene.quiz.questions.length === 1 ? 'question' : 'questions'}
+                          </span>
+                        )}
+                        {scene.actionPrompt && (
+                          <span className={`flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border ${ACTION_PROMPT_TYPE_COLORS[scene.actionPrompt.type] || 'bg-gray-100 text-gray-700 border-gray-200'}`}>
+                            <MessageSquare className="w-3 h-3" />
+                            {ACTION_PROMPT_TYPE_LABELS[scene.actionPrompt.type] || scene.actionPrompt.type}
+                          </span>
+                        )}
+                        {!scene.quiz?.questions?.length && !scene.actionPrompt && (
+                          <span className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-500 border border-gray-200">
+                            <FileText className="w-3 h-3" />
+                            No interaction
                           </span>
                         )}
                       </div>
                       <h3 className="text-lg font-semibold text-gray-900">{scene.title}</h3>
-                      <p className="text-gray-600 text-sm mt-1">{scene.description}</p>
+                      <p className="text-gray-600 text-sm mt-1 line-clamp-1">{scene.description}</p>
                     </div>
                   </div>
 
@@ -452,7 +481,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
 
                     {/* Delete */}
                     <button
-                      onClick={() => handleDeleteScene(parseInt(scene.id))}
+                      onClick={() => handleDeleteScene(parseInt(scene.id), scene.title)}
                       className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                       title="Delete scene"
                     >
@@ -484,22 +513,28 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
         )}
       </div>
 
-      {/* Modals */}
-      {showCreateScene && (
-        <CreateSceneModal
-          onClose={() => setShowCreateScene(false)}
-          onSceneCreated={handleSceneCreated}
-        />
-      )}
-
       {showEditor && selectedScene && (
-        <SceneEditorModal
+        <SceneBuilder
           scene={selectedScene}
           instanceId={instanceId}
+          initialMode={initialBuilderMode}
           onSave={async (updatedScene) => {
             const success = await saveSceneConfiguration(updatedScene, instanceId);
             if (success) {
-              setScenes(prev => prev.map(s => s.id === updatedScene.id ? updatedScene : s));
+              const updatedSceneId = parseInt(updatedScene.id, 10);
+              const alreadyInScenes = scenes.some(scene => parseInt(scene.id, 10) === updatedSceneId);
+
+              setScenes(prev => {
+                if (prev.some(s => s.id === updatedScene.id)) {
+                  return prev.map(s => s.id === updatedScene.id ? updatedScene : s);
+                }
+                return [...prev, updatedScene];
+              });
+
+              const inOrder = sceneOrder.some(item => item.scene_id === updatedSceneId);
+              if (!inOrder && !alreadyInScenes) {
+                await addSceneToOrder(updatedSceneId, instanceId);
+              }
             }
             return success;
           }}
@@ -510,10 +545,21 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
         />
       )}
 
+      {confirmDialog && (
+        <ConfirmDialog
+          title={confirmDialog.title}
+          message={confirmDialog.message}
+          confirmLabel={confirmDialog.confirmLabel}
+          variant="danger"
+          onConfirm={confirmDialog.onConfirm}
+          onCancel={() => setConfirmDialog(null)}
+        />
+      )}
+
       {showPreview && selectedScene && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-4 flex items-center justify-between">
+            <div className="bg-blue-600 text-white p-4 flex items-center justify-between">
               <h3 className="text-xl font-bold">Scene Preview</h3>
               <button
                 onClick={() => {

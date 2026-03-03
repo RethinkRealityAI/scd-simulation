@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, RefreshCw, AlertCircle } from 'lucide-react';
+import { X, Save, RefreshCw, AlertCircle, Info } from 'lucide-react';
 import { SimulationInstance } from '../../hooks/useSimulationInstances';
 
 interface InstanceSettingsModalProps {
@@ -49,13 +49,29 @@ const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({ instance,
     }));
   };
 
+  const toggleDisabledFeature = (feature: string) => {
+    setEditedInstance(prev => {
+      const current = prev.content_config.disabled_features || [];
+      const updated = current.includes(feature)
+        ? current.filter(f => f !== feature)
+        : [...current, feature];
+      return {
+        ...prev,
+        content_config: { ...prev.content_config, disabled_features: updated }
+      };
+    });
+  };
 
+  const isFeatureDisabled = (feature: string) =>
+    (editedInstance.content_config.disabled_features || []).includes(feature);
+
+  const branding = editedInstance.branding_config;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
       <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
+        <div className="bg-blue-600 text-white p-6">
           <div className="flex items-center justify-between">
             <div>
               <h2 className="text-2xl font-bold">Instance Settings</h2>
@@ -189,6 +205,30 @@ const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({ instance,
           {/* Branding Tab */}
           {activeTab === 'branding' && (
             <div className="space-y-6">
+              {/* Live Preview Strip */}
+              <div className="rounded-xl overflow-hidden border border-gray-200 shadow-sm">
+                <div className="p-3 text-xs font-semibold text-gray-500 bg-gray-50 border-b border-gray-200">Live Branding Preview</div>
+                <div className="p-5 flex items-center gap-4" style={{ backgroundColor: branding.background_color }}>
+                  {branding.logo_url && (
+                    <img src={branding.logo_url} alt="Logo" className="h-10 w-auto rounded object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-bold truncate" style={{ color: branding.text_color, fontFamily: branding.font_family }}>
+                      {editedInstance.name || 'Institution Name'}
+                    </div>
+                    <div className="text-xs truncate" style={{ color: branding.text_color, opacity: 0.7, fontFamily: branding.font_family }}>
+                      {editedInstance.institution_name || 'Institution'}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    {[branding.primary_color, branding.secondary_color, branding.accent_color].map((color, i) => (
+                      <div key={i} className="w-8 h-8 rounded-lg shadow-sm border border-white/30" style={{ backgroundColor: color }} title={['Primary', 'Secondary', 'Accent'][i]} />
+                    ))}
+                  </div>
+                </div>
+                <div className="h-1.5" style={{ backgroundColor: branding.primary_color }} />
+              </div>
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-2">Primary Color</label>
@@ -394,39 +434,70 @@ const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({ instance,
           {/* Content Tab */}
           {activeTab === 'content' && (
             <div className="space-y-6">
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-yellow-800 text-sm">
-                  <strong>Note:</strong> Content configuration is complex and requires JSON editing.
-                  Advanced content management will be added in a future update.
+              {/* Feature Toggles */}
+              <div>
+                <h3 className="text-base font-semibold text-gray-900 mb-1">Feature Controls</h3>
+                <p className="text-sm text-gray-500 mb-4">
+                  Disable specific simulation features for this instance. Disabled features are hidden from learners.
                 </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {[
+                    { key: 'audio', label: 'Audio Narration', description: 'Character voice-over audio player' },
+                    { key: 'sbar', label: 'SBAR Communication', description: 'SBAR word-bank drag-and-drop tool' },
+                    { key: 'vitals-monitor', label: 'Vitals Monitor', description: 'Real-time vital signs display panel' },
+                    { key: 'clinical-findings', label: 'Clinical Findings', description: 'Clinical findings sidebar list' },
+                    { key: 'discussion-prompts', label: 'Discussion Prompts', description: 'Debrief discussion questions' },
+                    { key: 'progress-bar', label: 'Progress Bar', description: 'Top navigation progress indicator' },
+                    { key: 'scoring', label: 'Scoring Display', description: 'Show score on results screen' },
+                    { key: 'category-scores', label: 'Category Scores', description: 'Breakdown by scoring category' },
+                  ].map(({ key, label, description }) => {
+                    const disabled = isFeatureDisabled(key);
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        onClick={() => toggleDisabledFeature(key)}
+                        className={`flex items-start gap-3 p-3 rounded-xl border-2 text-left transition-all ${
+                          disabled
+                            ? 'border-red-200 bg-red-50'
+                            : 'border-green-200 bg-green-50 hover:border-green-300'
+                        }`}
+                      >
+                        <div className={`mt-0.5 w-5 h-5 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-bold ${
+                          disabled ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
+                        }`}>
+                          {disabled ? '✕' : '✓'}
+                        </div>
+                        <div>
+                          <div className={`text-sm font-semibold ${disabled ? 'text-red-800' : 'text-green-900'}`}>{label}</div>
+                          <div className="text-xs text-gray-500 mt-0.5">{description}</div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
+              {/* Scene Order Overview */}
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Scene Order</label>
-                <div className="bg-gray-100 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-2">Current scene order:</p>
+                <h3 className="text-base font-semibold text-gray-900 mb-1">Scene Order</h3>
+                <p className="text-sm text-gray-500 mb-3">
+                  Manage scene ordering from the <strong>Scenes</strong> tab in the admin dashboard.
+                </p>
+                {(editedInstance.content_config.scene_order || []).length > 0 ? (
                   <div className="flex flex-wrap gap-2">
-                    {(editedInstance.content_config.scene_order || []).map((sceneId, index) => (
-                      <span key={sceneId} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-sm">
+                    {editedInstance.content_config.scene_order.map((sceneId, index) => (
+                      <span key={sceneId} className="px-2.5 py-1.5 bg-blue-50 text-blue-800 rounded-lg text-xs font-medium border border-blue-200">
                         {index + 1}. Scene {sceneId}
                       </span>
                     ))}
                   </div>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Disabled Features</label>
-                <div className="bg-gray-100 p-4 rounded-lg">
-                  <p className="text-sm text-gray-600 mb-2">Currently disabled features:</p>
-                  <div className="flex flex-wrap gap-2">
-                    {(editedInstance.content_config.disabled_features || []).map((feature, index) => (
-                      <span key={index} className="px-2 py-1 bg-red-100 text-red-800 rounded text-sm">
-                        {feature}
-                      </span>
-                    ))}
+                ) : (
+                  <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800">
+                    <Info className="w-4 h-4 flex-shrink-0" />
+                    Default scene order is used (Scenes 1–10 in sequence). Customise ordering in the Scenes tab.
                   </div>
-                </div>
+                )}
               </div>
             </div>
           )}

@@ -69,6 +69,7 @@ export const useSceneData = () => {
         discussion_prompts: sceneData.discussionPrompts,
         clinical_findings: sceneData.clinicalFindings,
         scoring_categories: sceneData.scoringCategories,
+        layout_config: sceneData.layoutConfig || null,
         is_active: true
       };
 
@@ -94,6 +95,7 @@ export const useSceneData = () => {
               discussion_prompts: configurationData.discussion_prompts,
               clinical_findings: configurationData.clinical_findings,
               scoring_categories: configurationData.scoring_categories,
+              layout_config: configurationData.layout_config,
               updated_at: new Date().toISOString()
             })
             .eq('scene_id', configurationData.scene_id);

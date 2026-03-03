@@ -22,7 +22,7 @@ const ClinicalFindingsEditor: React.FC<ClinicalFindingsEditorProps> = ({ finding
   };
 
   return (
-    <div className="bg-gradient-to-r from-teal-50 to-cyan-50 p-6 rounded-xl border-2 border-teal-200">
+    <div className="bg-teal-50 p-6 rounded-xl border-2 border-teal-200">
       <div className="flex items-center justify-between mb-4">
         <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
           <Clipboard className="w-5 h-5 text-teal-600" />

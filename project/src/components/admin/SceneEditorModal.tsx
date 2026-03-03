@@ -1,9 +1,28 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, RefreshCw, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import {
+  X,
+  Save,
+  RefreshCw,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  FileText,
+  Activity,
+  HelpCircle,
+  MessageSquare,
+  Stethoscope,
+  Play,
+  ChevronRight,
+  Trash2,
+  Plus,
+} from 'lucide-react';
 import { SceneData, defaultVitalsDisplayConfig, defaultVitalsVisibility } from '../../data/scenesData';
 import VideoEmbedInput, { VideoEmbedValue } from './VideoEmbedInput';
 import { parseVideoUrl } from '../../utils/videoEmbedUtils';
 import { useVideoData } from '../../hooks/useVideoData';
+import QuizQuestionsEditor from './QuizQuestionsEditor';
+import ActionPromptsEditor from './ActionPromptsEditor';
+import ScenePreview from '../ScenePreview';
 
 interface SceneEditorModalProps {
   scene: SceneData;
@@ -12,25 +31,36 @@ interface SceneEditorModalProps {
   instanceId?: string;
 }
 
-const VITAL_COLORS = ['cyan', 'green', 'yellow', 'red', 'purple', 'blue', 'orange', 'pink'];
+type TabId = 'basic' | 'vitals' | 'quiz' | 'prompts' | 'findings';
 
-const COLOR_SWATCHES: Record<string, string> = {
-  cyan: 'bg-cyan-400',
-  green: 'bg-green-400',
-  yellow: 'bg-yellow-400',
-  red: 'bg-red-400',
-  purple: 'bg-purple-400',
-  blue: 'bg-blue-400',
-  orange: 'bg-orange-400',
-  pink: 'bg-pink-400',
+// Tailwind class string for text inputs — avoids a <style> tag while keeping consistent styling
+const INPUT_CLS = 'w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors placeholder-gray-400 text-gray-900';
+
+const VITAL_COLORS = ['cyan', 'green', 'yellow', 'red', 'purple', 'blue', 'orange', 'pink'];
+const COLOR_HEX: Record<string, string> = {
+  cyan: '#22d3ee', green: '#4ade80', yellow: '#facc15', red: '#f87171',
+  purple: '#c084fc', blue: '#60a5fa', orange: '#fb923c', pink: '#f472b6',
 };
+const COLOR_SWATCHES: Record<string, string> = {
+  cyan: 'bg-cyan-400', green: 'bg-green-400', yellow: 'bg-yellow-400', red: 'bg-red-400',
+  purple: 'bg-purple-400', blue: 'bg-blue-400', orange: 'bg-orange-400', pink: 'bg-pink-400',
+};
+
+const SCORING_CATEGORIES = [
+  { value: 'timelyPainManagement', label: 'Timely Pain Management' },
+  { value: 'clinicalJudgment', label: 'Clinical Judgment' },
+  { value: 'communication', label: 'Communication' },
+  { value: 'culturalSafety', label: 'Cultural Safety' },
+  { value: 'biasMitigation', label: 'Bias Mitigation' },
+];
 
 const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onClose, instanceId }) => {
   const { uploadVideo, saveStreamVideo } = useVideoData();
   const [editedScene, setEditedScene] = useState<SceneData>(scene);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'basic' | 'vitals' | 'quiz' | 'prompts' | 'findings'>('basic');
+  const [activeTab, setActiveTab] = useState<TabId>('basic');
+  const [showPreview, setShowPreview] = useState(false);
   const [videoEmbed, setVideoEmbed] = useState<VideoEmbedValue>({
     sourceType: scene.videoSourceType === 'stream' ? 'stream' : 'upload',
     file: null,
@@ -40,7 +70,6 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
     description: '',
   });
 
-  // Initialize vitalsDisplayConfig if not present
   useEffect(() => {
     setEditedScene({
       ...scene,
@@ -52,38 +81,18 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
     try {
       setSaving(true);
       setError(null);
-
-      // Apply video embed state to scene
       const sceneToSave = { ...editedScene };
 
       if (videoEmbed.sourceType === 'stream' && videoEmbed.parsed) {
-        // Save stream URL to simulation_videos table
-        await saveStreamVideo(
-          parseInt(scene.id),
-          videoEmbed.parsed.embedUrl,
-          sceneToSave.title,
-          sceneToSave.description,
-          instanceId
-        );
-
+        await saveStreamVideo(parseInt(scene.id), videoEmbed.parsed.embedUrl, sceneToSave.title, sceneToSave.description, instanceId);
         sceneToSave.videoUrl = videoEmbed.parsed.embedUrl;
         sceneToSave.videoSourceType = 'stream';
         sceneToSave.streamUrl = videoEmbed.streamUrl;
       } else if (videoEmbed.sourceType === 'upload') {
-        // Upload video file if provided
         if (videoEmbed.file) {
-          const insertData = await uploadVideo(
-            videoEmbed.file,
-            parseInt(scene.id),
-            sceneToSave.title,
-            sceneToSave.description,
-            instanceId
-          );
-          if (insertData?.video_url) {
-            sceneToSave.videoUrl = insertData.video_url;
-          }
+          const insertData = await uploadVideo(videoEmbed.file, parseInt(scene.id), sceneToSave.title, sceneToSave.description, instanceId);
+          if (insertData?.video_url) sceneToSave.videoUrl = insertData.video_url;
         }
-
         sceneToSave.videoSourceType = 'upload';
         sceneToSave.streamUrl = undefined;
       }
@@ -102,20 +111,11 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
   };
 
   const handleInputChange = (field: keyof SceneData, value: any) => {
-    setEditedScene(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setEditedScene(prev => ({ ...prev, [field]: value }));
   };
 
   const handleVitalsChange = (field: string, value: any) => {
-    setEditedScene(prev => ({
-      ...prev,
-      vitals: {
-        ...prev.vitals,
-        [field]: value
-      }
-    }));
+    setEditedScene(prev => ({ ...prev, vitals: { ...prev.vitals, [field]: value } }));
   };
 
   const handleVisibilityToggle = (field: keyof typeof defaultVitalsVisibility) => {
@@ -123,13 +123,7 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
       const currentConfig = prev.vitalsDisplayConfig || { ...defaultVitalsDisplayConfig };
       return {
         ...prev,
-        vitalsDisplayConfig: {
-          ...currentConfig,
-          visibility: {
-            ...currentConfig.visibility,
-            [field]: !currentConfig.visibility[field],
-          },
-        },
+        vitalsDisplayConfig: { ...currentConfig, visibility: { ...currentConfig.visibility, [field]: !currentConfig.visibility[field] } },
       };
     });
   };
@@ -139,527 +133,523 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
       const currentConfig = prev.vitalsDisplayConfig || { ...defaultVitalsDisplayConfig };
       return {
         ...prev,
-        vitalsDisplayConfig: {
-          ...currentConfig,
-          colors: {
-            ...currentConfig.colors,
-            [field]: color,
-          },
-        },
+        vitalsDisplayConfig: { ...currentConfig, colors: { ...currentConfig.colors, [field]: color } },
       };
     });
   };
 
-  const addArrayItem = (field: 'clinicalFindings' | 'discussionPrompts' | 'scoringCategories') => {
-    setEditedScene(prev => ({
-      ...prev,
-      [field]: [...(prev[field] || []), '']
-    }));
+  const addArrayItem = (field: 'clinicalFindings' | 'discussionPrompts') => {
+    setEditedScene(prev => ({ ...prev, [field]: [...(prev[field] || []), ''] }));
   };
 
-  const removeArrayItem = (field: 'clinicalFindings' | 'discussionPrompts' | 'scoringCategories', index: number) => {
-    setEditedScene(prev => ({
-      ...prev,
-      [field]: (prev[field] || []).filter((_, i) => i !== index)
-    }));
+  const removeArrayItem = (field: 'clinicalFindings' | 'discussionPrompts', index: number) => {
+    setEditedScene(prev => ({ ...prev, [field]: (prev[field] || []).filter((_, i) => i !== index) }));
   };
 
-  const updateArrayItem = (field: 'clinicalFindings' | 'discussionPrompts' | 'scoringCategories', index: number, value: string) => {
-    setEditedScene(prev => ({
-      ...prev,
-      [field]: (prev[field] || []).map((item, i) => i === index ? value : item)
-    }));
+  const updateArrayItem = (field: 'clinicalFindings' | 'discussionPrompts', index: number, value: string) => {
+    setEditedScene(prev => ({ ...prev, [field]: (prev[field] || []).map((item, i) => i === index ? value : item) }));
+  };
+
+  const toggleScoringCategory = (cat: string) => {
+    const current = editedScene.scoringCategories || [];
+    const updated = current.includes(cat as any)
+      ? current.filter(c => c !== cat)
+      : [...current, cat as any];
+    handleInputChange('scoringCategories', updated);
   };
 
   const displayConfig = editedScene.vitalsDisplayConfig || defaultVitalsDisplayConfig;
 
+  const quizCount = editedScene.quiz?.questions?.length ?? 0;
+  const hasPrompt = !!editedScene.actionPrompt;
+
+  // Sidebar tab definitions
+  const TABS: { id: TabId; label: string; icon: React.FC<any>; badge?: string | null; description: string }[] = [
+    { id: 'basic', label: 'Scene Info', icon: FileText, description: 'Title, description, video' },
+    { id: 'vitals', label: 'Vital Signs', icon: Activity, description: 'Monitor values & display' },
+    { id: 'quiz', label: 'Quiz', icon: HelpCircle, badge: quizCount > 0 ? String(quizCount) : null, description: 'Knowledge check questions' },
+    { id: 'prompts', label: 'Action Prompt', icon: MessageSquare, badge: hasPrompt ? '●' : null, description: 'Clinical decision activity' },
+    { id: 'findings', label: 'Clinical Content', icon: Stethoscope, description: 'Findings, prompts & scoring' },
+  ];
+
+  if (showPreview) {
+    return (
+      <ScenePreview
+        sceneData={editedScene}
+        onClose={() => setShowPreview(false)}
+      />
+    );
+  }
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[90vh] flex flex-col overflow-hidden">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-purple-600 to-blue-600 text-white p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-2xl font-bold">Edit Scene Configuration</h2>
-              <p className="text-purple-100 mt-1">Scene {scene.id}: {scene.title}</p>
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-3">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl h-[92vh] flex flex-col overflow-hidden">
+
+        {/* ── Header ── */}
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0 bg-white">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-blue-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+              {scene.id}
             </div>
-            <button
-              onClick={onClose}
-              className="text-white hover:bg-white/20 p-2 rounded-lg transition-colors"
-            >
-              <X className="w-6 h-6" />
-            </button>
+            <div className="min-w-0">
+              <h2 className="text-base font-bold text-gray-900 leading-tight truncate">
+                {editedScene.title || 'Untitled Scene'}
+              </h2>
+              <p className="text-xs text-gray-400">Scene {scene.id} · Edit Configuration</p>
+            </div>
           </div>
-        </div>
-
-        {/* Tab Navigation */}
-        <div className="border-b border-gray-200 bg-gray-50">
-          <div className="flex space-x-1 p-4">
-            {[
-              { id: 'basic', label: 'Basic Info', icon: '📝' },
-              { id: 'vitals', label: 'Vitals', icon: '💓' },
-              { id: 'quiz', label: 'Quiz', icon: '❓' },
-              { id: 'prompts', label: 'Prompts', icon: '💬' },
-              { id: 'findings', label: 'Findings', icon: '🔍' }
-            ].map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === tab.id
-                  ? 'bg-blue-600 text-white'
-                  : 'text-gray-600 hover:bg-gray-200'
-                  }`}
-              >
-                <span className="mr-2">{tab.icon}</span>
-                {tab.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Content */}
-        <div className="p-6 overflow-y-auto flex-1 min-h-0">
-          {error && (
-            <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
-              <AlertCircle className="w-5 h-5 text-red-600" />
-              <span className="text-red-800">{error}</span>
-            </div>
-          )}
-
-          {/* Basic Info Tab */}
-          {activeTab === 'basic' && (
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
-                <input
-                  type="text"
-                  value={editedScene.title}
-                  onChange={(e) => handleInputChange('title', e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
-                <textarea
-                  value={editedScene.description}
-                  onChange={(e) => handleInputChange('description', e.target.value)}
-                  rows={4}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-3">Video</label>
-                <VideoEmbedInput
-                  value={videoEmbed}
-                  onChange={setVideoEmbed}
-                  existingVideoUrl={scene.videoUrl}
-                  sceneId={scene.id}
-                  compact
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Poster URL</label>
-                <input
-                  type="url"
-                  value={editedScene.posterUrl || ''}
-                  onChange={(e) => handleInputChange('posterUrl', e.target.value)}
-                  className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                  placeholder="https://example.com/poster.jpg"
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Vitals Tab — Enhanced with visibility and color controls */}
-          {activeTab === 'vitals' && (
-            <div className="space-y-8">
-              {/* Visibility Controls Section */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">Vital Signs Visibility</h3>
-                <p className="text-sm text-gray-500 mb-4">Toggle which vital signs appear on the monitor for this scene.</p>
-                <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  {[
-                    { key: 'heartRate' as const, label: 'Heart Rate', icon: '❤️' },
-                    { key: 'bloodPressure' as const, label: 'Blood Pressure', icon: '🩸' },
-                    { key: 'respiratoryRate' as const, label: 'Respiratory Rate', icon: '🫁' },
-                    { key: 'oxygenSaturation' as const, label: 'SpO₂', icon: '💨' },
-                    { key: 'temperature' as const, label: 'Temperature', icon: '🌡️' },
-                    { key: 'painLevel' as const, label: 'Pain Level', icon: '😣' },
-                    { key: 'patientInfo' as const, label: 'Patient Info', icon: '👤' },
-                  ].map(({ key, label, icon }) => (
-                    <button
-                      key={key}
-                      onClick={() => handleVisibilityToggle(key)}
-                      className={`flex items-center gap-3 p-3 rounded-xl border-2 transition-all duration-200 ${displayConfig.visibility[key]
-                        ? 'border-blue-500 bg-blue-50 text-blue-900 shadow-sm'
-                        : 'border-gray-200 bg-gray-50 text-gray-400'
-                        }`}
-                    >
-                      <span className="text-xl">{icon}</span>
-                      <div className="flex-1 text-left">
-                        <div className="text-sm font-medium">{label}</div>
-                      </div>
-                      {displayConfig.visibility[key] ? (
-                        <Eye className="w-4 h-4 text-blue-500" />
-                      ) : (
-                        <EyeOff className="w-4 h-4 text-gray-400" />
-                      )}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Color Configuration */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">Accent Colors</h3>
-                <p className="text-sm text-gray-500 mb-4">Choose the display color for each vital sign.</p>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                  {[
-                    { key: 'heartRate', label: 'Heart Rate' },
-                    { key: 'bloodPressure', label: 'Blood Pressure' },
-                    { key: 'respiratoryRate', label: 'Respiratory Rate' },
-                    { key: 'oxygenSaturation', label: 'SpO₂' },
-                    { key: 'temperature', label: 'Temperature' },
-                    { key: 'painLevel', label: 'Pain Level' },
-                  ].map(({ key, label }) => {
-                    const currentColor = (displayConfig.colors as any)?.[key] || 'cyan';
-                    return (
-                      <div key={key} className="bg-gray-50 rounded-xl p-3 border border-gray-200">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">{label}</label>
-                        <div className="flex flex-wrap gap-1.5">
-                          {VITAL_COLORS.map(color => (
-                            <button
-                              key={color}
-                              onClick={() => handleVitalColorChange(key, color)}
-                              className={`w-7 h-7 rounded-full ${COLOR_SWATCHES[color]} transition-all duration-200 ${currentColor === color
-                                ? 'ring-2 ring-offset-2 ring-blue-500 scale-110'
-                                : 'opacity-60 hover:opacity-100 hover:scale-105'
-                                }`}
-                              title={color.charAt(0).toUpperCase() + color.slice(1)}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* Vital Values */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">Vital Sign Values</h3>
-                <p className="text-sm text-gray-500 mb-4">Set the displayed values for this scene.</p>
-                <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Heart Rate (bpm)</label>
-                    <input
-                      type="number"
-                      value={editedScene.vitals.heartRate}
-                      onChange={(e) => handleVitalsChange('heartRate', parseInt(e.target.value) || 0)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Systolic BP (mmHg)</label>
-                    <input
-                      type="number"
-                      value={editedScene.vitals.systolic}
-                      onChange={(e) => handleVitalsChange('systolic', parseInt(e.target.value) || 0)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Diastolic BP (mmHg)</label>
-                    <input
-                      type="number"
-                      value={editedScene.vitals.diastolic}
-                      onChange={(e) => handleVitalsChange('diastolic', parseInt(e.target.value) || 0)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Respiratory Rate (rpm)</label>
-                    <input
-                      type="number"
-                      value={editedScene.vitals.respiratoryRate}
-                      onChange={(e) => handleVitalsChange('respiratoryRate', parseInt(e.target.value) || 0)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Oxygen Saturation (%)</label>
-                    <input
-                      type="number"
-                      value={editedScene.vitals.oxygenSaturation}
-                      onChange={(e) => handleVitalsChange('oxygenSaturation', parseInt(e.target.value) || 0)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Temperature (°C)</label>
-                    <input
-                      type="number"
-                      step="0.1"
-                      value={editedScene.vitals.temperature}
-                      onChange={(e) => handleVitalsChange('temperature', parseFloat(e.target.value) || 0)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Pain Level (0-10)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="10"
-                      value={editedScene.vitals.painLevel ?? ''}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        handleVitalsChange('painLevel', val === '' ? undefined : parseInt(val));
-                      }}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      placeholder="Leave empty to hide"
-                    />
-                    <p className="text-xs text-gray-400 mt-1">Leave empty to not display pain for this scene</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Patient Info */}
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-1">Patient Information</h3>
-                <p className="text-sm text-gray-500 mb-4">Displayed in the vitals monitor header.</p>
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Patient Name</label>
-                    <input
-                      type="text"
-                      value={editedScene.vitals.patientName}
-                      onChange={(e) => handleVitalsChange('patientName', e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Age</label>
-                    <input
-                      type="number"
-                      value={editedScene.vitals.age}
-                      onChange={(e) => handleVitalsChange('age', parseInt(e.target.value) || 0)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">Bed Number</label>
-                    <input
-                      type="text"
-                      value={editedScene.vitals.bedNumber}
-                      onChange={(e) => handleVitalsChange('bedNumber', e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">MRN</label>
-                    <input
-                      type="text"
-                      value={editedScene.vitals.mrn}
-                      onChange={(e) => handleVitalsChange('mrn', e.target.value)}
-                      className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              {/* Alarm Toggle */}
-              <div className="flex items-center gap-4">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={editedScene.vitals.isAlarmOn}
-                    onChange={(e) => handleVitalsChange('isAlarmOn', e.target.checked)}
-                    className="w-5 h-5 text-red-600 rounded focus:ring-red-500"
-                  />
-                  <span className="text-sm font-medium text-gray-700">🚨 Alarm Active</span>
-                </label>
-              </div>
-            </div>
-          )}
-
-          {/* Clinical Findings Tab */}
-          {activeTab === 'findings' && (
-            <div className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Clinical Findings</label>
-                <div className="space-y-2">
-                  {(editedScene.clinicalFindings || []).map((finding, index) => (
-                    <div key={index} className="flex gap-2">
-                      <input
-                        type="text"
-                        value={finding}
-                        onChange={(e) => updateArrayItem('clinicalFindings', index, e.target.value)}
-                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                        placeholder="Enter clinical finding"
-                      />
-                      <button
-                        onClick={() => removeArrayItem('clinicalFindings', index)}
-                        className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => addArrayItem('clinicalFindings')}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                  >
-                    Add Finding
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Discussion Prompts</label>
-                <div className="space-y-2">
-                  {(editedScene.discussionPrompts || []).map((prompt, index) => (
-                    <div key={index} className="flex gap-2">
-                      <textarea
-                        value={prompt}
-                        onChange={(e) => updateArrayItem('discussionPrompts', index, e.target.value)}
-                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 resize-none"
-                        rows={2}
-                        placeholder="Enter discussion prompt"
-                      />
-                      <button
-                        onClick={() => removeArrayItem('discussionPrompts', index)}
-                        className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => addArrayItem('discussionPrompts')}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                  >
-                    Add Prompt
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">Scoring Categories</label>
-                <div className="space-y-2">
-                  {(editedScene.scoringCategories || []).map((category, index) => (
-                    <div key={index} className="flex gap-2">
-                      <select
-                        value={category}
-                        onChange={(e) => updateArrayItem('scoringCategories', index, e.target.value)}
-                        className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                      >
-                        <option value="timelyPainManagement">Timely Pain Management</option>
-                        <option value="clinicalJudgment">Clinical Judgment</option>
-                        <option value="communication">Communication</option>
-                        <option value="culturalSafety">Cultural Safety</option>
-                        <option value="biasMitigation">Bias Mitigation</option>
-                      </select>
-                      <button
-                        onClick={() => removeArrayItem('scoringCategories', index)}
-                        className="px-3 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-                      >
-                        Remove
-                      </button>
-                    </div>
-                  ))}
-                  <button
-                    onClick={() => addArrayItem('scoringCategories')}
-                    className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
-                  >
-                    Add Category
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Quiz Tab */}
-          {activeTab === 'quiz' && (
-            <div className="space-y-6">
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-yellow-800 text-sm">
-                  <strong>Note:</strong> Quiz configuration is complex and requires JSON editing.
-                  For now, this is handled by the static scene data. Advanced quiz editing will be added in a future update.
-                </p>
-              </div>
-
-              {editedScene.quiz && (
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Current Quiz Configuration</h4>
-                  <div className="bg-gray-100 p-4 rounded-lg">
-                    <pre className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {JSON.stringify(editedScene.quiz, null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* Prompts Tab */}
-          {activeTab === 'prompts' && (
-            <div className="space-y-6">
-              <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-yellow-800 text-sm">
-                  <strong>Note:</strong> Action prompts configuration is complex and requires JSON editing.
-                  For now, this is handled by the static scene data. Advanced prompt editing will be added in a future update.
-                </p>
-              </div>
-
-              {editedScene.actionPrompt && (
-                <div>
-                  <h4 className="text-lg font-semibold text-gray-900 mb-4">Current Action Prompt Configuration</h4>
-                  <div className="bg-gray-100 p-4 rounded-lg">
-                    <pre className="text-sm text-gray-700 whitespace-pre-wrap">
-                      {JSON.stringify(editedScene.actionPrompt, null, 2)}
-                    </pre>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div className="border-t border-gray-200 p-6 bg-gray-50">
-          <div className="flex items-center justify-end gap-3">
+          <div className="flex items-center gap-2 flex-shrink-0">
             <button
-              onClick={onClose}
-              className="px-6 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+              onClick={() => setShowPreview(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gray-900 text-white rounded-xl hover:bg-gray-800 transition-colors text-xs font-medium"
             >
-              Cancel
+              <Play className="w-3.5 h-3.5" />
+              Preview
             </button>
             <button
               onClick={handleSave}
               disabled={saving}
-              className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center gap-2"
+              className="flex items-center gap-1.5 px-4 py-1.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:opacity-50 transition-colors text-xs font-semibold"
             >
-              {saving ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  Saving...
-                </>
-              ) : (
-                <>
-                  <Save className="w-4 h-4" />
-                  Save Changes
-                </>
-              )}
+              {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
+              {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">
+              <X className="w-5 h-5" />
             </button>
           </div>
         </div>
+
+        {/* ── Body: sidebar + content ── */}
+        <div className="flex flex-1 overflow-hidden">
+
+          {/* Left sidebar navigation */}
+          <nav className="w-52 flex-shrink-0 border-r border-gray-100 bg-gray-50 py-3 px-2 flex flex-col gap-0.5 overflow-y-auto">
+            {TABS.map(({ id, label, icon: Icon, badge, description }) => {
+              const isActive = activeTab === id;
+              return (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  className={`flex items-start gap-3 px-3 py-2.5 rounded-xl text-left w-full transition-all group ${
+                    isActive
+                      ? 'bg-white text-gray-900 shadow-sm border border-gray-200'
+                      : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+                  }`}
+                >
+                  <div className={`mt-0.5 flex-shrink-0 ${isActive ? 'text-blue-600' : 'text-gray-400 group-hover:text-gray-600'}`}>
+                    <Icon className="w-4 h-4" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-semibold leading-tight">{label}</span>
+                      {badge && (
+                        <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold leading-none ${
+                          isActive ? 'bg-blue-600 text-white' : 'bg-blue-100 text-blue-700'
+                        }`}>
+                          {badge}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs text-gray-400 leading-tight block mt-0.5">{description}</span>
+                  </div>
+                  {isActive && <ChevronRight className="w-3.5 h-3.5 text-gray-400 flex-shrink-0 mt-0.5" />}
+                </button>
+              );
+            })}
+
+            {/* Separator + preview button */}
+            <div className="mt-auto pt-3 border-t border-gray-200 px-1">
+              <button
+                onClick={() => setShowPreview(true)}
+                className="flex items-center gap-2 w-full px-3 py-2 rounded-xl bg-gray-900 text-white hover:bg-gray-800 transition-colors text-xs font-medium"
+              >
+                <Play className="w-3.5 h-3.5" />
+                Test in Preview
+              </button>
+            </div>
+          </nav>
+
+          {/* Main content area */}
+          <div className="flex-1 overflow-y-auto">
+            {error && (
+              <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 flex-shrink-0" />
+                <span className="text-red-800 text-sm">{error}</span>
+              </div>
+            )}
+
+            {/* ── Basic Info ── */}
+            {activeTab === 'basic' && (
+              <div className="p-6 space-y-6 max-w-3xl">
+                <SectionHeader
+                  title="Scene Information"
+                  description="The title and description appear in the scene header that learners see during the simulation."
+                />
+
+                <FormField label="Scene Title" required>
+                  <input
+                    type="text"
+                    value={editedScene.title}
+                    onChange={e => handleInputChange('title', e.target.value)}
+                    className={INPUT_CLS}
+                    placeholder="e.g., Initial Assessment"
+                  />
+                </FormField>
+
+                <FormField label="Description" hint="Shown as the scene context under the title">
+                  <textarea
+                    value={editedScene.description}
+                    onChange={e => handleInputChange('description', e.target.value)}
+                    rows={3}
+                    className={`${INPUT_CLS} resize-none`}
+                    placeholder="Brief description of this clinical scenario scene…"
+                  />
+                </FormField>
+
+                <div>
+                  <p className="text-sm font-semibold text-gray-700 mb-3">Video Content</p>
+                  <div className="rounded-xl border border-gray-200 overflow-hidden">
+                    <VideoEmbedInput
+                      value={videoEmbed}
+                      onChange={setVideoEmbed}
+                      existingVideoUrl={scene.videoUrl}
+                      sceneId={scene.id}
+                      compact
+                    />
+                  </div>
+                </div>
+
+                <FormField label="Poster / Thumbnail URL" hint="Shown while video loads">
+                  <input
+                    type="url"
+                    value={editedScene.posterUrl || ''}
+                    onChange={e => handleInputChange('posterUrl', e.target.value)}
+                    className={INPUT_CLS}
+                    placeholder="https://example.com/poster.jpg"
+                  />
+                </FormField>
+              </div>
+            )}
+
+            {/* ── Vitals ── */}
+            {activeTab === 'vitals' && (
+              <div className="p-6 space-y-8 max-w-3xl">
+                {/* Patient info strip */}
+                <div>
+                  <SectionHeader
+                    title="Patient Identity"
+                    description="Displayed in the vitals monitor header panel."
+                  />
+                  <div className="grid grid-cols-2 gap-4 mt-4">
+                    {[
+                      { key: 'patientName', label: 'Patient Name', type: 'text', placeholder: 'Tobi James' },
+                      { key: 'age', label: 'Age', type: 'number', placeholder: '14' },
+                      { key: 'bedNumber', label: 'Bed #', type: 'text', placeholder: '4B' },
+                      { key: 'mrn', label: 'MRN', type: 'text', placeholder: 'MRN-00142' },
+                    ].map(({ key, label, type, placeholder }) => (
+                      <FormField key={key} label={label}>
+                        <input
+                          type={type}
+                          value={(editedScene.vitals as any)[key] ?? ''}
+                          onChange={e => handleVitalsChange(key, type === 'number' ? parseInt(e.target.value) || 0 : e.target.value)}
+                          className={INPUT_CLS}
+                          placeholder={placeholder}
+                        />
+                      </FormField>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Alarm toggle */}
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => handleVitalsChange('isAlarmOn', !editedScene.vitals.isAlarmOn)}
+                    className={`flex items-center gap-3 px-4 py-3 rounded-xl border-2 transition-all w-full sm:w-auto ${
+                      editedScene.vitals.isAlarmOn
+                        ? 'border-red-400 bg-red-50 text-red-800'
+                        : 'border-gray-200 bg-gray-50 text-gray-600 hover:border-gray-300'
+                    }`}
+                  >
+                    <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-lg ${editedScene.vitals.isAlarmOn ? 'bg-red-200' : 'bg-gray-200'}`}>
+                      🚨
+                    </div>
+                    <div className="text-left">
+                      <div className="text-sm font-semibold">Monitor Alarm</div>
+                      <div className="text-xs opacity-75">{editedScene.vitals.isAlarmOn ? 'Active — alarm flashing' : 'Off — normal display'}</div>
+                    </div>
+                    <div className={`ml-auto w-5 h-5 rounded-full border-2 flex items-center justify-center ${editedScene.vitals.isAlarmOn ? 'border-red-500 bg-red-500' : 'border-gray-300'}`}>
+                      {editedScene.vitals.isAlarmOn && <div className="w-2 h-2 bg-white rounded-full" />}
+                    </div>
+                  </button>
+                </div>
+
+                {/* Vitals visibility + values */}
+                <div>
+                  <SectionHeader title="Vital Signs" description="Toggle visibility and set values for this scene." />
+                  <div className="mt-4 space-y-3">
+                    {[
+                      { key: 'heartRate' as const, visKey: 'heartRate' as const, label: 'Heart Rate', unit: 'bpm', type: 'number', step: '1' },
+                      { key: 'systolic' as const, visKey: 'bloodPressure' as const, label: 'Systolic BP', unit: 'mmHg', type: 'number', step: '1' },
+                      { key: 'diastolic' as const, visKey: 'bloodPressure' as const, label: 'Diastolic BP', unit: 'mmHg', type: 'number', step: '1' },
+                      { key: 'respiratoryRate' as const, visKey: 'respiratoryRate' as const, label: 'Respiratory Rate', unit: 'rpm', type: 'number', step: '1' },
+                      { key: 'oxygenSaturation' as const, visKey: 'oxygenSaturation' as const, label: 'SpO₂', unit: '%', type: 'number', step: '1' },
+                      { key: 'temperature' as const, visKey: 'temperature' as const, label: 'Temperature', unit: '°C', type: 'number', step: '0.1' },
+                      { key: 'painLevel' as const, visKey: 'painLevel' as const, label: 'Pain Level', unit: '/10', type: 'number', step: '1', optional: true },
+                    ].map(({ key, visKey, label, unit, type, step, optional }) => {
+                      const colorKey = visKey === 'bloodPressure' ? 'bloodPressure' : visKey;
+                      const currentColor = (displayConfig.colors as any)?.[colorKey] || 'cyan';
+                      const isVisible = displayConfig.visibility[visKey];
+                      return (
+                        <div key={key} className={`rounded-xl border-2 p-3 transition-all ${isVisible ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-60'}`}>
+                          <div className="flex items-center gap-3">
+                            {/* Visibility toggle */}
+                            <button
+                              type="button"
+                              onClick={() => handleVisibilityToggle(visKey)}
+                              className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${isVisible ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}
+                            >
+                              {isVisible ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                            </button>
+                            {/* Label */}
+                            <div className="flex-1 min-w-0">
+                              <div className="text-sm font-medium text-gray-700">{label}</div>
+                            </div>
+                            {/* Color dot */}
+                            <div
+                              className="w-5 h-5 rounded-full border-2 border-white shadow-sm flex-shrink-0"
+                              style={{ backgroundColor: COLOR_HEX[currentColor] }}
+                              title={`Color: ${currentColor}`}
+                            />
+                            {/* Value input */}
+                            <div className="flex items-center gap-1 flex-shrink-0">
+                              <input
+                                type={type}
+                                step={step}
+                                min={optional ? '' : '0'}
+                                max={visKey === 'painLevel' ? '10' : undefined}
+                                value={(editedScene.vitals as any)[key] ?? ''}
+                                onChange={e => {
+                                  const val = e.target.value;
+                                  handleVitalsChange(key, val === '' ? undefined : (step === '0.1' ? parseFloat(val) : parseInt(val)) || 0);
+                                }}
+                                className="w-20 p-1.5 border border-gray-200 rounded-lg text-sm text-center focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                placeholder={optional ? 'Hide' : '0'}
+                              />
+                              <span className="text-xs text-gray-400 w-8">{unit}</span>
+                            </div>
+                          </div>
+
+                          {/* Color picker — show for all visible vitals except diastolic (it shares BP color with systolic) */}
+                          {isVisible && key !== 'diastolic' && (
+                            <div className="mt-2 ml-11 flex flex-wrap gap-1 items-center">
+                              {VITAL_COLORS.map(color => (
+                                <button
+                                  key={color}
+                                  type="button"
+                                  onClick={() => handleVitalColorChange(colorKey, color)}
+                                  className={`w-5 h-5 rounded-full ${COLOR_SWATCHES[color]} transition-all ${
+                                    currentColor === color ? 'ring-2 ring-offset-1 ring-blue-500 scale-110' : 'opacity-50 hover:opacity-100'
+                                  }`}
+                                  title={color}
+                                />
+                              ))}
+                              {key === 'systolic' && (
+                                <span className="text-xs text-gray-400 ml-1">applies to both BP values</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Patient Info visibility toggle */}
+                    <div className={`rounded-xl border-2 p-3 transition-all ${displayConfig.visibility.patientInfo ? 'border-gray-200 bg-white' : 'border-gray-100 bg-gray-50 opacity-60'}`}>
+                      <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={() => handleVisibilityToggle('patientInfo')}
+                          className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${displayConfig.visibility.patientInfo ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-400'}`}
+                        >
+                          {displayConfig.visibility.patientInfo ? <Eye className="w-4 h-4" /> : <EyeOff className="w-4 h-4" />}
+                        </button>
+                        <div className="flex-1 text-sm font-medium text-gray-700">Patient Info Header</div>
+                        <span className="text-xs text-gray-400">Name, age, MRN, bed</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* ── Quiz ── */}
+            {activeTab === 'quiz' && (
+              <div className="p-6 space-y-4 max-w-3xl">
+                <SectionHeader
+                  title="Quiz Questions"
+                  description="Add knowledge-check questions. Learners see one question at a time and get immediate feedback with your explanation after answering."
+                />
+                <QuizQuestionsEditor
+                  questions={editedScene.quiz?.questions || []}
+                  onChange={questions => handleInputChange('quiz', questions.length > 0 ? { questions } : undefined)}
+                />
+              </div>
+            )}
+
+            {/* ── Prompts ── */}
+            {activeTab === 'prompts' && (
+              <div className="p-6 space-y-4 max-w-3xl">
+                <SectionHeader
+                  title="Action Prompt"
+                  description="An interactive clinical decision activity shown in the right panel. Choose from single-choice, multi-select, SBAR communication, or open reflection. Only one per scene."
+                />
+                <ActionPromptsEditor
+                  actionPrompt={editedScene.actionPrompt}
+                  onChange={actionPrompt => handleInputChange('actionPrompt', actionPrompt)}
+                />
+              </div>
+            )}
+
+            {/* ── Findings / Clinical Content ── */}
+            {activeTab === 'findings' && (
+              <div className="p-6 space-y-8 max-w-3xl">
+                {/* Clinical Findings */}
+                <div>
+                  <SectionHeader
+                    title="Clinical Findings"
+                    description="Bullet points shown in the left panel alongside the video. Use concise clinical observations."
+                  />
+                  <div className="mt-4 space-y-2">
+                    {(editedScene.clinicalFindings || []).map((finding, i) => (
+                      <div key={i} className="flex items-center gap-2">
+                        <div className="w-6 h-6 rounded-full bg-cyan-100 text-cyan-700 text-xs font-bold flex items-center justify-center flex-shrink-0">
+                          {i + 1}
+                        </div>
+                        <input
+                          type="text"
+                          value={finding}
+                          onChange={e => updateArrayItem('clinicalFindings', i, e.target.value)}
+                          className="flex-1 p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-gray-50 focus:bg-white"
+                          placeholder="e.g., HR 124 bpm, elevated and irregular"
+                        />
+                        <button
+                          onClick={() => removeArrayItem('clinicalFindings', i)}
+                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => addArrayItem('clinicalFindings')}
+                      className="flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800 font-medium py-1"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add clinical finding
+                    </button>
+                  </div>
+                </div>
+
+                {/* Discussion Prompts */}
+                <div>
+                  <SectionHeader
+                    title="Discussion Prompts"
+                    description="Debrief questions shown after the scene is completed. Encourage reflection and group discussion."
+                  />
+                  <div className="mt-4 space-y-2">
+                    {(editedScene.discussionPrompts || []).map((prompt, i) => (
+                      <div key={i} className="flex items-start gap-2">
+                        <div className="w-6 h-6 rounded-full bg-purple-100 text-purple-700 text-xs font-bold flex items-center justify-center flex-shrink-0 mt-2.5">
+                          {i + 1}
+                        </div>
+                        <textarea
+                          value={prompt}
+                          onChange={e => updateArrayItem('discussionPrompts', i, e.target.value)}
+                          className="flex-1 p-2.5 border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none bg-gray-50 focus:bg-white"
+                          rows={2}
+                          placeholder="e.g., What biases might influence how clinicians respond to Tobi's pain?"
+                        />
+                        <button
+                          onClick={() => removeArrayItem('discussionPrompts', i)}
+                          className="p-1.5 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 mt-2"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => addArrayItem('discussionPrompts')}
+                      className="flex items-center gap-2 text-sm text-purple-600 hover:text-purple-800 font-medium py-1"
+                    >
+                      <Plus className="w-4 h-4" />
+                      Add discussion prompt
+                    </button>
+                  </div>
+                </div>
+
+                {/* Scoring Categories */}
+                <div>
+                  <SectionHeader
+                    title="Scoring Categories"
+                    description="Tag this scene's interactions against learning domains. Used in the results breakdown."
+                  />
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {SCORING_CATEGORIES.map(({ value, label }) => {
+                      const active = (editedScene.scoringCategories || []).includes(value as any);
+                      return (
+                        <button
+                          key={value}
+                          type="button"
+                          onClick={() => toggleScoringCategory(value)}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl border-2 text-sm font-medium transition-all ${
+                            active
+                              ? 'border-blue-500 bg-blue-50 text-blue-800'
+                              : 'border-gray-200 bg-gray-50 text-gray-500 hover:border-gray-300'
+                          }`}
+                        >
+                          <div className={`w-4 h-4 rounded border-2 flex items-center justify-center flex-shrink-0 text-xs ${active ? 'border-blue-500 bg-blue-500' : 'border-gray-300'}`}>
+                            {active && <span className="text-white font-bold">✓</span>}
+                          </div>
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
+
     </div>
   );
 };
+
+// ── Helper sub-components ──────────────────────────────────────────────────────
+
+const SectionHeader: React.FC<{ title: string; description?: string }> = ({ title, description }) => (
+  <div>
+    <h3 className="text-sm font-bold text-gray-900">{title}</h3>
+    {description && <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">{description}</p>}
+  </div>
+);
+
+const FormField: React.FC<{
+  label: string;
+  hint?: string;
+  required?: boolean;
+  children: React.ReactNode;
+}> = ({ label, hint, required, children }) => (
+  <div>
+    <label className="block text-sm font-medium text-gray-700 mb-1.5">
+      {label}
+      {required && <span className="text-red-500 ml-0.5">*</span>}
+      {hint && <span className="text-gray-400 font-normal ml-1.5 text-xs">{hint}</span>}
+    </label>
+    {children}
+  </div>
+);
 
 export default SceneEditorModal;

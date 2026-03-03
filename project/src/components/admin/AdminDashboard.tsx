@@ -3,15 +3,24 @@ import EnhancedWelcomeScreenEditor from './EnhancedWelcomeScreenEditor';
 import AnalyticsDashboard from './AnalyticsDashboard';
 import SceneManagementDashboard from './SceneManagementDashboard';
 import SimulationInstanceDashboard from './SimulationInstanceDashboard';
+import AdminManagementPanel from './AdminManagementPanel';
 import AdminHeader from './AdminHeader';
 import { useSimulationInstances } from '../../hooks/useSimulationInstances';
 import CreateInstanceModal from './CreateInstanceModal';
 import { CheckCircle, AlertCircle } from 'lucide-react';
 
-type AdminTab = 'instances' | 'scenes' | 'analytics' | 'welcome';
+type AdminTab = 'instances' | 'scenes' | 'analytics' | 'welcome' | 'admins';
 
 const AdminDashboard: React.FC = () => {
-  const { instances, createInstance, loading } = useSimulationInstances();
+  const {
+    instances,
+    createInstance,
+    updateInstance,
+    deleteInstance,
+    fetchInstances,
+    loading,
+    error,
+  } = useSimulationInstances();
 
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [activeTab, setActiveTab] = useState<AdminTab>('instances');
@@ -21,7 +30,7 @@ const AdminDashboard: React.FC = () => {
   const selectedInstance = instances.find(instance => instance.id === selectedInstanceId);
 
   const clearMessage = () => {
-    setTimeout(() => setMessage(null), 5000);
+    setTimeout(() => setMessage(null), 4000);
   };
 
   const handleCreateNew = () => {
@@ -35,21 +44,42 @@ const AdminDashboard: React.FC = () => {
   const renderActiveTab = () => {
     switch (activeTab) {
       case 'instances':
-        return <SimulationInstanceDashboard onClose={() => { }} />;
+        return (
+          <SimulationInstanceDashboard
+            instances={instances}
+            loading={loading}
+            error={error}
+            fetchInstances={fetchInstances}
+            updateInstance={updateInstance}
+            deleteInstance={deleteInstance}
+            onCreateNew={handleCreateNew}
+          />
+        );
       case 'scenes':
         return <SceneManagementDashboard instanceId={selectedInstanceId || undefined} />;
       case 'analytics':
         return <AnalyticsDashboard instanceId={selectedInstanceId || undefined} />;
       case 'welcome':
         return <EnhancedWelcomeScreenEditor instanceId={selectedInstanceId || undefined} />;
+      case 'admins':
+        return <AdminManagementPanel />;
       default:
-        return <SimulationInstanceDashboard onClose={() => { }} />;
+        return (
+          <SimulationInstanceDashboard
+            instances={instances}
+            loading={loading}
+            error={error}
+            fetchInstances={fetchInstances}
+            updateInstance={updateInstance}
+            deleteInstance={deleteInstance}
+            onCreateNew={handleCreateNew}
+          />
+        );
     }
   };
 
   return (
-    <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
-      {/* Modern Header with Institution Selector */}
+    <div className="h-screen flex flex-col bg-slate-50 overflow-hidden">
       <AdminHeader
         selectedInstanceId={selectedInstanceId}
         selectedInstance={selectedInstance}
@@ -61,9 +91,9 @@ const AdminDashboard: React.FC = () => {
         loading={loading}
       />
 
-      {/* Main Content Area */}
+      {/* Content area - compact padding */}
       <div className="flex-1 overflow-hidden">
-        <div className="h-full overflow-y-auto p-6">
+        <div className="h-full overflow-y-auto p-4">
           {renderActiveTab()}
         </div>
       </div>
@@ -74,9 +104,17 @@ const AdminDashboard: React.FC = () => {
           onClose={() => setShowCreateInstanceModal(false)}
           onCreate={async (instanceData) => {
             try {
-              await createInstance(instanceData);
+              const newInstance = await createInstance(instanceData);
               setShowCreateInstanceModal(false);
-              setMessage({ type: 'success', text: 'Instance created successfully!' });
+              if (newInstance?.id) {
+                setSelectedInstanceId(newInstance.id);
+              }
+              setMessage({
+                type: 'success',
+                text: instanceData.name
+                  ? `Instance "${instanceData.name}" created and selected.`
+                  : 'Instance created and selected.',
+              });
               clearMessage();
             } catch (error) {
               setMessage({ type: 'error', text: 'Failed to create instance' });
@@ -86,35 +124,25 @@ const AdminDashboard: React.FC = () => {
         />
       )}
 
-      {/* Toast Notification */}
+      {/* Toast */}
       {message && (
-        <div className="fixed top-6 right-6 z-50 max-w-sm animate-slide-in">
-          <div className={`flex items-start gap-3 p-4 rounded-xl shadow-2xl border backdrop-blur-sm transition-all duration-300 ${message.type === 'success'
-            ? 'bg-emerald-50/95 border-emerald-200 text-emerald-800'
-            : 'bg-red-50/95 border-red-200 text-red-800'
-            }`}>
-            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${message.type === 'success' ? 'bg-emerald-100' : 'bg-red-100'
-              }`}>
-              {message.type === 'success' ? (
-                <CheckCircle className="w-4 h-4 text-emerald-600" />
-              ) : (
-                <AlertCircle className="w-4 h-4 text-red-600" />
-              )}
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold">
-                {message.type === 'success' ? 'Success' : 'Error'}
-              </p>
-              <p className="text-xs mt-0.5 opacity-80">{message.text}</p>
-            </div>
+        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-50 max-w-sm animate-slide-in">
+          <div className={`flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-2xl text-sm font-medium backdrop-blur-sm ${
+            message.type === 'success'
+              ? 'bg-slate-900/95 text-white'
+              : 'bg-red-600/95 text-white'
+          }`}>
+            {message.type === 'success' ? (
+              <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+            )}
+            <span>{message.text}</span>
             <button
               onClick={() => setMessage(null)}
-              className="text-gray-400 hover:text-gray-600 transition-colors p-0.5"
+              className="ml-2 text-white/50 hover:text-white transition-colors flex-shrink-0"
             >
-              <span className="sr-only">Close</span>
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-              </svg>
+              ✕
             </button>
           </div>
         </div>

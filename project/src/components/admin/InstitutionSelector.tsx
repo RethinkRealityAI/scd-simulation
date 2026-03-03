@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { SimulationInstance } from '../../hooks/useSimulationInstances';
-import { ChevronDown, Building2, Check, Plus } from 'lucide-react';
+import { ChevronDown, Building2, Check, Plus, Search } from 'lucide-react';
 
 interface InstitutionSelectorProps {
   selectedInstanceId: string | null;
@@ -19,6 +19,8 @@ const InstitutionSelector: React.FC<InstitutionSelectorProps> = ({
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const selectedInstance = instances.find(instance => instance.id === selectedInstanceId);
 
@@ -27,7 +29,24 @@ const InstitutionSelector: React.FC<InstitutionSelectorProps> = ({
     instance.institution_name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleInstanceSelect = (instanceId: string) => {
+  useEffect(() => {
+    if (isOpen && searchRef.current) {
+      searchRef.current.focus();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+        setSearchTerm('');
+      }
+    };
+    if (isOpen) document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isOpen]);
+
+  const handleInstanceSelect = (instanceId: string | null) => {
     onInstanceChange(instanceId);
     setIsOpen(false);
     setSearchTerm('');
@@ -39,145 +58,112 @@ const InstitutionSelector: React.FC<InstitutionSelectorProps> = ({
   };
 
   return (
-    <div className="relative">
-      {/* Institution Selector Button */}
+    <div className="relative flex-shrink-0" ref={containerRef}>
+      {/* Trigger */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-3 px-4 py-3 bg-white rounded-lg border border-gray-200 hover:border-gray-300 transition-colors min-w-[300px]"
+        className="flex items-center gap-2 pl-3 pr-2 py-1.5 rounded-md bg-slate-800 border border-slate-700 hover:border-slate-600 transition-colors text-xs min-w-[180px] max-w-[240px]"
       >
-        <div className="flex items-center gap-3 flex-1">
-          {selectedInstance ? (
-            <>
-              <div
-                className="w-3 h-3 rounded-full flex-shrink-0"
-                style={{ backgroundColor: selectedInstance.branding_config?.primary_color || '#3b82f6' }}
-              />
-              <div className="text-left flex-1">
-                <div className="font-medium text-gray-900 truncate">
-                  {selectedInstance.name}
-                </div>
-                <div className="text-sm text-gray-500 truncate">
-                  {selectedInstance.institution_name}
-                </div>
-              </div>
-            </>
-          ) : (
-            <>
-              <Building2 className="w-5 h-5 text-gray-400" />
-              <div className="text-left flex-1">
-                <div className="font-medium text-gray-900">Select Institution</div>
-                <div className="text-sm text-gray-500">Choose an institution to edit</div>
-              </div>
-            </>
-          )}
-        </div>
-        <ChevronDown className={`w-5 h-5 text-gray-400 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+        {selectedInstance ? (
+          <>
+            <div
+              className="w-2 h-2 rounded-full flex-shrink-0"
+              style={{ backgroundColor: selectedInstance.branding_config?.primary_color || '#3b82f6' }}
+            />
+            <span className="text-slate-200 truncate flex-1 text-left font-medium">
+              {selectedInstance.name}
+            </span>
+          </>
+        ) : (
+          <>
+            <Building2 className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+            <span className="text-slate-400 flex-1 text-left">Select Instance</span>
+          </>
+        )}
+        <ChevronDown className={`w-3.5 h-3.5 text-slate-500 transition-transform flex-shrink-0 ${isOpen ? 'rotate-180' : ''}`} />
       </button>
 
-      {/* Dropdown Menu */}
+      {/* Glassmorphic Dropdown */}
       {isOpen && (
-        <div className="absolute top-full left-0 right-0 mt-2 bg-white border border-gray-200 rounded-lg shadow-lg z-50 max-h-96 overflow-hidden">
-          {/* Search Bar */}
-          <div className="p-3 border-b border-gray-100">
-            <input
-              type="text"
-              placeholder="Search institutions..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-200 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-            />
+        <div className="absolute top-full right-0 mt-1.5 w-72 rounded-xl border border-white/10 bg-slate-900/80 backdrop-blur-xl shadow-2xl shadow-black/40 z-50 overflow-hidden">
+          {/* Search */}
+          <div className="p-2 border-b border-white/5">
+            <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-white/5 border border-white/10">
+              <Search className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+              <input
+                ref={searchRef}
+                type="text"
+                placeholder="Search instances..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="flex-1 bg-transparent text-xs text-slate-200 placeholder-slate-500 outline-none"
+              />
+            </div>
           </div>
 
-          {/* Create New Button */}
+          {/* Create New */}
           <button
             onClick={handleCreateNew}
-            className="w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 flex items-center gap-3 text-blue-600 font-medium"
+            className="w-full px-3 py-2 text-left flex items-center gap-2.5 text-xs font-medium text-blue-400 hover:bg-blue-500/10 transition-colors border-b border-white/5"
           >
-            <Plus className="w-4 h-4" />
-            Create New Institution
-          </button>
-
-          {/* Base Select */}
-          <button
-            onClick={() => handleInstanceSelect(null as any)}
-            className={`w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 flex items-center gap-3 transition-colors ${selectedInstanceId === null ? 'bg-blue-50 border-l-4 border-l-blue-500 pl-3' : 'border-l-4 border-l-transparent pl-3'
-              }`}
-          >
-            <div className="w-3 h-3 rounded-full flex-shrink-0 bg-indigo-500" />
-            <div className="flex-1 min-w-0">
-              <div className="font-medium text-gray-900 truncate">
-                Base Configuration
-              </div>
-              <div className="text-sm text-gray-500 truncate">
-                Global Default Application
-              </div>
+            <div className="w-5 h-5 rounded-md bg-blue-500/20 flex items-center justify-center flex-shrink-0">
+              <Plus className="w-3 h-3" />
             </div>
-            {selectedInstanceId === null && (
-              <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />
-            )}
+            Create New Instance
           </button>
 
-          {/* Institution List */}
-          <div className="max-h-64 overflow-y-auto">
+          {/* Base Config */}
+          <button
+            onClick={() => handleInstanceSelect(null)}
+            className={`w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-white/5 transition-colors border-b border-white/5 ${
+              selectedInstanceId === null ? 'bg-blue-500/10' : ''
+            }`}
+          >
+            <div className="w-2 h-2 rounded-full bg-slate-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="text-xs font-medium text-slate-200 truncate">Base Configuration</div>
+              <div className="text-[10px] text-slate-500 truncate">Global defaults</div>
+            </div>
+            {selectedInstanceId === null && <Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />}
+          </button>
+
+          {/* Instance List */}
+          <div className="max-h-52 overflow-y-auto overscroll-contain">
             {loading ? (
-              <div className="p-4 text-center text-gray-500">
-                <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mx-auto mb-2"></div>
-                <div className="text-sm">Loading institutions...</div>
+              <div className="p-4 text-center">
+                <div className="w-5 h-5 border-2 border-slate-600 border-t-blue-500 rounded-full animate-spin mx-auto mb-1.5" />
+                <span className="text-[10px] text-slate-500">Loading...</span>
               </div>
             ) : filteredInstances.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
-                <div className="text-sm">
-                  {searchTerm ? 'No institutions found matching your search.' : 'No institutions created yet.'}
-                </div>
-                {!searchTerm && (
-                  <div className="text-xs text-gray-400 mt-1">
-                    Click "Create New Institution" to get started
-                  </div>
-                )}
+              <div className="p-4 text-center text-xs text-slate-500">
+                {searchTerm ? 'No matches found.' : 'No instances yet.'}
               </div>
             ) : (
-              <div className="divide-y divide-gray-100">
-                {filteredInstances.map((instance) => (
-                  <button
-                    key={instance.id}
-                    onClick={() => handleInstanceSelect(instance.id)}
-                    className={`w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 transition-colors ${selectedInstanceId === instance.id ? 'bg-blue-50 border-r-2 border-blue-500' : ''
-                      }`}
-                  >
-                    <div
-                      className="w-3 h-3 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: instance.branding_config?.primary_color || '#3b82f6' }}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-gray-900 truncate">
-                        {instance.name}
-                      </div>
-                      <div className="text-sm text-gray-500 truncate">
-                        {instance.institution_name}
-                      </div>
-                      {instance.description && (
-                        <div className="text-xs text-gray-400 truncate mt-1">
-                          {instance.description}
-                        </div>
-                      )}
-                    </div>
-                    {selectedInstanceId === instance.id && (
-                      <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                    )}
-                  </button>
-                ))}
-              </div>
+              filteredInstances.map((instance) => (
+                <button
+                  key={instance.id}
+                  onClick={() => handleInstanceSelect(instance.id)}
+                  className={`w-full px-3 py-2 text-left flex items-center gap-2.5 hover:bg-white/5 transition-colors ${
+                    selectedInstanceId === instance.id ? 'bg-blue-500/10' : ''
+                  }`}
+                >
+                  <div
+                    className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: instance.branding_config?.primary_color || '#3b82f6' }}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="text-xs font-medium text-slate-200 truncate">{instance.name}</div>
+                    <div className="text-[10px] text-slate-500 truncate">{instance.institution_name}</div>
+                  </div>
+                  {!instance.is_active && (
+                    <span className="text-[9px] px-1.5 py-0.5 bg-red-500/20 text-red-400 rounded-full flex-shrink-0">Off</span>
+                  )}
+                  {selectedInstanceId === instance.id && <Check className="w-3.5 h-3.5 text-blue-400 flex-shrink-0" />}
+                </button>
+              ))
             )}
           </div>
         </div>
-      )}
-
-      {/* Overlay to close dropdown */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40"
-          onClick={() => setIsOpen(false)}
-        />
       )}
     </div>
   );

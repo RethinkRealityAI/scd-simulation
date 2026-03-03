@@ -26,6 +26,7 @@ export interface SimulationInstance {
     scene_order: number[];
     custom_scenes: any[];
     disabled_features: string[];
+    scene_setup_mode?: 'template' | 'scratch';
   };
   is_active: boolean;
   requires_approval: boolean;
@@ -93,8 +94,157 @@ export function useSimulationInstances() {
     }
   };
 
+  const cloneGlobalSceneTemplateToInstance = async (instanceId: string): Promise<number[]> => {
+    // Copy global scene order rows to the new instance.
+    const { data: globalSceneOrder, error: sceneOrderError } = await supabase
+      .from('scene_order')
+      .select('scene_id, display_order, is_completion_scene, is_active')
+      .is('instance_id', null)
+      .order('display_order');
+
+    if (sceneOrderError) throw sceneOrderError;
+
+    const copiedSceneOrder = (globalSceneOrder || []).map(item => item.scene_id);
+
+    if (globalSceneOrder && globalSceneOrder.length > 0) {
+      const orderInserts = globalSceneOrder.map(item => ({
+        instance_id: instanceId,
+        scene_id: item.scene_id,
+        display_order: item.display_order,
+        is_completion_scene: item.is_completion_scene,
+        is_active: item.is_active,
+      }));
+
+      const { error: insertOrderError } = await supabase
+        .from('scene_order')
+        .insert(orderInserts);
+
+      if (insertOrderError) throw insertOrderError;
+    }
+
+    // Copy global scene configuration rows to the new instance.
+    // We include layout_config/vitals_display_config if available in schema.
+    const { data: globalConfigs, error: configError } = await supabase
+      .from('scene_configurations')
+      .select('scene_id, title, description, vitals_config, vitals_display_config, quiz_questions, action_prompts, discussion_prompts, clinical_findings, scoring_categories, layout_config, is_active')
+      .is('instance_id', null)
+      .eq('is_active', true)
+      .order('scene_id');
+
+    // If the environment has not applied layout/vitals display columns yet,
+    // retry with a narrower selection instead of hard-failing instance creation.
+    let resolvedConfigs = globalConfigs;
+    const supportsExtendedSceneConfigColumns = !configError;
+    if (configError) {
+      const { data: fallbackConfigs, error: fallbackError } = await supabase
+        .from('scene_configurations')
+        .select('scene_id, title, description, vitals_config, quiz_questions, action_prompts, discussion_prompts, clinical_findings, scoring_categories, is_active')
+        .is('instance_id', null)
+        .eq('is_active', true)
+        .order('scene_id');
+
+      if (fallbackError) throw fallbackError;
+      resolvedConfigs = fallbackConfigs as any[];
+    }
+
+    if (resolvedConfigs && resolvedConfigs.length > 0) {
+      const configInserts = resolvedConfigs.map(config => {
+        const baseInsert = {
+          instance_id: instanceId,
+          scene_id: config.scene_id,
+          title: config.title,
+          description: config.description,
+          vitals_config: config.vitals_config,
+          quiz_questions: config.quiz_questions,
+          action_prompts: config.action_prompts,
+          discussion_prompts: config.discussion_prompts,
+          clinical_findings: config.clinical_findings,
+          scoring_categories: config.scoring_categories,
+          is_active: config.is_active,
+        };
+
+        if (!supportsExtendedSceneConfigColumns) {
+          return baseInsert;
+        }
+
+        return {
+          ...baseInsert,
+          vitals_display_config: (config as any).vitals_display_config ?? null,
+          layout_config: (config as any).layout_config ?? null,
+        };
+      });
+
+      const { error: insertConfigError } = await supabase
+        .from('scene_configurations')
+        .insert(configInserts);
+
+      if (insertConfigError) throw insertConfigError;
+    }
+
+    // Copy global video rows to the new instance if available.
+    const { data: globalVideos, error: videosError } = await supabase
+      .from('simulation_videos')
+      .select('scene_id, title, description, video_url, poster_url, audio_narration_url, duration_seconds')
+      .is('instance_id', null);
+
+    if (videosError) throw videosError;
+
+    if (globalVideos && globalVideos.length > 0) {
+      const videoInserts = globalVideos.map(video => ({
+        instance_id: instanceId,
+        scene_id: video.scene_id,
+        title: video.title,
+        description: video.description,
+        video_url: video.video_url,
+        poster_url: video.poster_url,
+        audio_narration_url: video.audio_narration_url,
+        duration_seconds: video.duration_seconds,
+      }));
+
+      const { error: insertVideoError } = await supabase
+        .from('simulation_videos')
+        .insert(videoInserts);
+
+      if (insertVideoError) throw insertVideoError;
+    }
+
+    return copiedSceneOrder;
+  };
+
+  const rollbackIncompleteTemplateInstance = async (instanceId: string) => {
+    // Best-effort compensation when template provisioning fails mid-flight.
+    const cleanupSteps = [
+      supabase.from('simulation_videos').delete().eq('instance_id', instanceId),
+      supabase.from('scene_configurations').delete().eq('instance_id', instanceId),
+      supabase.from('scene_order').delete().eq('instance_id', instanceId),
+      supabase.from('simulation_instances').delete().eq('id', instanceId),
+    ];
+
+    for (const step of cleanupSteps) {
+      const { error } = await step;
+      if (error) {
+        throw error;
+      }
+    }
+
+    setInstances(prev => prev.filter(instance => instance.id !== instanceId));
+  };
+
   const createInstance = async (instanceData: Partial<SimulationInstance>) => {
     try {
+      const requestedSetupMode =
+        instanceData.content_config?.scene_setup_mode === 'template'
+          ? 'template'
+          : 'scratch';
+
+      instanceData.content_config = {
+        scene_order: requestedSetupMode === 'scratch' ? [] : (instanceData.content_config?.scene_order || []),
+        custom_scenes: instanceData.content_config?.custom_scenes || [],
+        disabled_features: instanceData.content_config?.disabled_features || [],
+        scene_setup_mode: requestedSetupMode,
+        welcome_config: instanceData.content_config?.welcome_config,
+      };
+
       // Generate institution_id if not provided
       if (!instanceData.institution_id) {
         const { data: generatedId, error: idError } = await supabase.rpc('generate_institution_id');
@@ -115,6 +265,36 @@ export function useSimulationInstances() {
         .single();
 
       if (error) throw error;
+
+      let createdInstance = data as SimulationInstance;
+
+      if (requestedSetupMode === 'template') {
+        try {
+          const copiedSceneOrder = await cloneGlobalSceneTemplateToInstance(createdInstance.id);
+          const updatedContentConfig = {
+            ...(createdInstance.content_config || {}),
+            scene_order: copiedSceneOrder,
+            scene_setup_mode: 'template' as const,
+          };
+
+          const { data: updatedInstance, error: updateInstanceError } = await supabase
+            .from('simulation_instances')
+            .update({ content_config: updatedContentConfig })
+            .eq('id', createdInstance.id)
+            .select()
+            .single();
+
+          if (updateInstanceError) throw updateInstanceError;
+          createdInstance = updatedInstance as SimulationInstance;
+        } catch (templateProvisioningError) {
+          try {
+            await rollbackIncompleteTemplateInstance(createdInstance.id);
+          } catch (rollbackError) {
+            console.error('Failed to rollback incomplete template instance:', rollbackError);
+          }
+          throw templateProvisioningError;
+        }
+      }
 
       // Create a default welcome configuration for the new instance
       try {
@@ -255,8 +435,8 @@ export function useSimulationInstances() {
         // Don't fail the instance creation if welcome config fails
       }
 
-      setInstances(prev => [data, ...prev]);
-      return data;
+      setInstances(prev => [createdInstance, ...prev]);
+      return createdInstance;
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create instance');
       throw err;

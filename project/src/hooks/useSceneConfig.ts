@@ -1,6 +1,30 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabase';
-import { scenes, SceneData } from '../data/scenesData';
+import {
+  scenes,
+  SceneData,
+  normalizeActionPromptConfig,
+  normalizeSceneLayoutConfig,
+} from '../data/scenesData';
+
+/**
+ * Returns true only when `val` carries meaningful content.
+ * Empty arrays `[]` and empty quiz objects `{ questions: [] }` are treated as
+ * absent so that the static fallback is used instead of an empty DB record
+ * silently overriding hardcoded scene data.
+ */
+function hasValue(val: unknown): boolean {
+  if (val === null || val === undefined) return false;
+  if (Array.isArray(val)) return val.length > 0;
+  if (typeof val === 'object') {
+    const asQuiz = val as { questions?: unknown[] };
+    if ('questions' in asQuiz) return Array.isArray(asQuiz.questions) && asQuiz.questions.length > 0;
+    const asAction = val as { type?: string };
+    if ('type' in asAction) return typeof asAction.type === 'string' && asAction.type.length > 0;
+    return Object.keys(val as object).length > 0;
+  }
+  return Boolean(val);
+}
 
 /**
  * Hook to load scene configurations from database and merge with static defaults
@@ -14,16 +38,19 @@ export const useSceneConfig = (sceneId: number, instanceId?: string) => {
     const loadSceneConfig = async () => {
       try {
         setLoading(true);
-
-        // Get static scene as fallback
-        const staticScene = scenes[sceneId - 1];
-
-        if (!staticScene) {
-          console.error(`Scene ${sceneId} not found in static data`);
-          setSceneData(null);
-          setLoading(false);
-          return;
-        }
+        const staticScene = scenes.find(scene => parseInt(scene.id, 10) === sceneId);
+        const templateScene = staticScene ?? {
+          ...scenes[0],
+          id: sceneId.toString(),
+          title: `Scene ${sceneId}`,
+          description: '',
+          videoUrl: '',
+          clinicalFindings: [],
+          discussionPrompts: [],
+          scoringCategories: [],
+          quiz: undefined,
+          actionPrompt: undefined,
+        };
 
         // Try to load configuration from database
         let query = supabase
@@ -46,30 +73,41 @@ export const useSceneConfig = (sceneId: number, instanceId?: string) => {
 
         if (dbConfig) {
           console.log(`✓ Loaded scene ${sceneId} configuration from database`);
-          // Merge database config with static scene (database takes precedence)
+          // Merge database config with static scene (database takes precedence only when non-empty)
           const mergedScene: SceneData = {
-            ...staticScene,
+            ...templateScene,
             id: sceneId.toString(),
-            title: dbConfig.title || staticScene.title,
-            description: dbConfig.description || staticScene.description,
-            vitals: dbConfig.vitals_config || staticScene.vitals,
-            vitalsDisplayConfig: dbConfig.vitals_display_config || staticScene.vitalsDisplayConfig,
-            quiz: dbConfig.quiz_questions || staticScene.quiz,
-            actionPrompt: dbConfig.action_prompts || staticScene.actionPrompt,
-            discussionPrompts: dbConfig.discussion_prompts || staticScene.discussionPrompts,
-            clinicalFindings: dbConfig.clinical_findings || staticScene.clinicalFindings,
-            scoringCategories: dbConfig.scoring_categories || staticScene.scoringCategories,
+            title: dbConfig.title || templateScene.title,
+            description: dbConfig.description || templateScene.description,
+            vitals: hasValue(dbConfig.vitals_config) ? dbConfig.vitals_config : templateScene.vitals,
+            vitalsDisplayConfig: hasValue(dbConfig.vitals_display_config) ? dbConfig.vitals_display_config : templateScene.vitalsDisplayConfig,
+            quiz: hasValue(dbConfig.quiz_questions) ? dbConfig.quiz_questions : templateScene.quiz,
+            actionPrompt: normalizeActionPromptConfig(
+              hasValue(dbConfig.action_prompts) ? dbConfig.action_prompts : templateScene.actionPrompt,
+              templateScene.actionPrompt,
+            ),
+            discussionPrompts: hasValue(dbConfig.discussion_prompts) ? dbConfig.discussion_prompts : templateScene.discussionPrompts,
+            clinicalFindings: hasValue(dbConfig.clinical_findings) ? dbConfig.clinical_findings : templateScene.clinicalFindings,
+            scoringCategories: hasValue(dbConfig.scoring_categories) ? dbConfig.scoring_categories : templateScene.scoringCategories,
+            layoutConfig: normalizeSceneLayoutConfig(
+              hasValue(dbConfig.layout_config) ? dbConfig.layout_config : templateScene.layoutConfig,
+            ),
           };
           setSceneData(mergedScene);
         } else {
-          console.log(`Using static configuration for scene ${sceneId} (no database config found)`);
-          setSceneData(staticScene);
+          // Instance-specific simulations should not silently fall back to global static scenes.
+          if (instanceId) {
+            console.log(`No instance scene config found for scene ${sceneId}`);
+            setSceneData(null);
+          } else {
+            console.log(`Using static configuration for scene ${sceneId} (no database config found)`);
+            setSceneData(staticScene || null);
+          }
         }
       } catch (err) {
         console.error('Error in loadSceneConfig:', err);
-        // Fallback to static scene on error
-        const staticScene = scenes[sceneId - 1];
-        setSceneData(staticScene);
+        const staticScene = scenes.find(scene => parseInt(scene.id, 10) === sceneId);
+        setSceneData(instanceId ? null : (staticScene || null));
       } finally {
         setLoading(false);
       }
@@ -86,7 +124,7 @@ export const useSceneConfig = (sceneId: number, instanceId?: string) => {
  * Useful for lists or when you need all scenes
  */
 export const useAllSceneConfigs = (instanceId?: string) => {
-  const [allScenes, setAllScenes] = useState<SceneData[]>(scenes);
+  const [allScenes, setAllScenes] = useState<SceneData[]>(instanceId ? [] : scenes);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -111,7 +149,7 @@ export const useAllSceneConfigs = (instanceId?: string) => {
 
         if (error) {
           console.error('Error loading scene configurations:', error);
-          setAllScenes(scenes);
+          setAllScenes(instanceId ? [] : scenes);
           setLoading(false);
           return;
         }
@@ -119,36 +157,86 @@ export const useAllSceneConfigs = (instanceId?: string) => {
         if (dbConfigs && dbConfigs.length > 0) {
           console.log(`✓ Loaded ${dbConfigs.length} scene configurations from database`);
 
-          // Merge each database config with its static counterpart
-          const mergedScenes = scenes.map(staticScene => {
-            const dbConfig = dbConfigs.find(config => config.scene_id === parseInt(staticScene.id));
+          if (instanceId) {
+            // Instance scope: only return instance-defined scenes.
+            const mergedScenes = dbConfigs.map(dbConfig => {
+              const staticScene = scenes.find(scene => parseInt(scene.id, 10) === dbConfig.scene_id);
+              const templateScene = staticScene ?? {
+                ...scenes[0],
+                id: dbConfig.scene_id.toString(),
+                title: `Scene ${dbConfig.scene_id}`,
+                description: '',
+                videoUrl: '',
+                clinicalFindings: [],
+                discussionPrompts: [],
+                scoringCategories: [],
+                quiz: undefined,
+                actionPrompt: undefined,
+              };
 
-            if (dbConfig) {
+              return {
+                ...templateScene,
+                id: dbConfig.scene_id.toString(),
+                title: dbConfig.title || templateScene.title,
+                description: dbConfig.description || templateScene.description,
+                vitals: hasValue(dbConfig.vitals_config) ? dbConfig.vitals_config : templateScene.vitals,
+                vitalsDisplayConfig: hasValue(dbConfig.vitals_display_config) ? dbConfig.vitals_display_config : templateScene.vitalsDisplayConfig,
+                quiz: hasValue(dbConfig.quiz_questions) ? dbConfig.quiz_questions : templateScene.quiz,
+                actionPrompt: normalizeActionPromptConfig(
+                  hasValue(dbConfig.action_prompts) ? dbConfig.action_prompts : templateScene.actionPrompt,
+                  templateScene.actionPrompt,
+                ),
+                discussionPrompts: hasValue(dbConfig.discussion_prompts) ? dbConfig.discussion_prompts : templateScene.discussionPrompts,
+                clinicalFindings: hasValue(dbConfig.clinical_findings) ? dbConfig.clinical_findings : templateScene.clinicalFindings,
+                scoringCategories: hasValue(dbConfig.scoring_categories) ? dbConfig.scoring_categories : templateScene.scoringCategories,
+                layoutConfig: normalizeSceneLayoutConfig(
+                  hasValue(dbConfig.layout_config) ? dbConfig.layout_config : templateScene.layoutConfig,
+                ),
+              } as SceneData;
+            });
+
+            mergedScenes.sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10));
+            setAllScenes(mergedScenes);
+          } else {
+            // Global scope: preserve static scenes and overlay db config.
+            const mergedStaticScenes = scenes.map(staticScene => {
+              const dbConfig = dbConfigs.find(config => config.scene_id === parseInt(staticScene.id, 10));
+              if (!dbConfig) return staticScene;
+
               return {
                 ...staticScene,
                 title: dbConfig.title || staticScene.title,
                 description: dbConfig.description || staticScene.description,
-                vitals: dbConfig.vitals_config || staticScene.vitals,
-                vitalsDisplayConfig: dbConfig.vitals_display_config || staticScene.vitalsDisplayConfig,
-                quiz: dbConfig.quiz_questions || staticScene.quiz,
-                actionPrompt: dbConfig.action_prompts || staticScene.actionPrompt,
-                discussionPrompts: dbConfig.discussion_prompts || staticScene.discussionPrompts,
-                clinicalFindings: dbConfig.clinical_findings || staticScene.clinicalFindings,
-                scoringCategories: dbConfig.scoring_categories || staticScene.scoringCategories,
+                vitals: hasValue(dbConfig.vitals_config) ? dbConfig.vitals_config : staticScene.vitals,
+                vitalsDisplayConfig: hasValue(dbConfig.vitals_display_config) ? dbConfig.vitals_display_config : staticScene.vitalsDisplayConfig,
+                quiz: hasValue(dbConfig.quiz_questions) ? dbConfig.quiz_questions : staticScene.quiz,
+                actionPrompt: normalizeActionPromptConfig(
+                  hasValue(dbConfig.action_prompts) ? dbConfig.action_prompts : staticScene.actionPrompt,
+                  staticScene.actionPrompt,
+                ),
+                discussionPrompts: hasValue(dbConfig.discussion_prompts) ? dbConfig.discussion_prompts : staticScene.discussionPrompts,
+                clinicalFindings: hasValue(dbConfig.clinical_findings) ? dbConfig.clinical_findings : staticScene.clinicalFindings,
+                scoringCategories: hasValue(dbConfig.scoring_categories) ? dbConfig.scoring_categories : staticScene.scoringCategories,
+                layoutConfig: normalizeSceneLayoutConfig(
+                  hasValue(dbConfig.layout_config) ? dbConfig.layout_config : staticScene.layoutConfig,
+                ),
               } as SceneData;
-            }
+            });
 
-            return staticScene;
-          });
-
-          setAllScenes(mergedScenes);
+            setAllScenes(mergedStaticScenes);
+          }
         } else {
-          console.log('No database configurations found, using static scenes');
-          setAllScenes(scenes);
+          if (instanceId) {
+            console.log('No instance-scoped scene configurations found');
+            setAllScenes([]);
+          } else {
+            console.log('No database configurations found, using static scenes');
+            setAllScenes(scenes);
+          }
         }
       } catch (err) {
         console.error('Error in loadAllConfigs:', err);
-        setAllScenes(scenes);
+        setAllScenes(instanceId ? [] : scenes);
       } finally {
         setLoading(false);
       }

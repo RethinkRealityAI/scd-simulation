@@ -3,6 +3,7 @@ import { X, AlertCircle } from 'lucide-react';
 import VitalsMonitor from './VitalsMonitor';
 import QuizComponent from './QuizComponent';
 import { SceneData } from '../data/scenesData';
+import DynamicSceneLayout from './DynamicSceneLayout';
 
 interface ScenePreviewProps {
   sceneData: SceneData;
@@ -71,87 +72,106 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({ sceneData, onClose }) => {
       <div className="relative z-10 h-full flex flex-col pt-12">
         {/* Scene Content */}
         <div className="flex-1 overflow-hidden px-4 pb-4 pt-2">
-          <div className="h-full grid grid-cols-1 xl:grid-cols-12 gap-2">
-            {/* Left Column - Vitals Monitor */}
-            {sceneData.id !== '9' && (
-              <div className="flex items-stretch order-last xl:order-first h-full xl:col-span-3">
-                <VitalsMonitor vitalsData={sceneData.vitals} className="h-full" sceneId={sceneData.id} />
-              </div>
-            )}
-
-            {/* Main Content Area */}
-            <div className={`flex flex-col space-y-1 overflow-hidden h-full min-h-0 ${
-              sceneData.id === '9' ? 'xl:col-span-12' : 'xl:col-span-9'
-            }`}>
-              {/* Scene Header */}
-              <div className="flex-shrink-0 p-2 rounded-lg bg-white/10 backdrop-blur-xl border border-white/20">
-                <div className="flex items-center justify-between mb-1">
-                  <h1 className="text-lg font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent leading-tight">
-                    {sceneData.title}
-                  </h1>
+          {sceneData.layoutConfig ? (
+            /* ── Dynamic layout from SceneBuilder ── */
+            <DynamicSceneLayout
+              scene={sceneData}
+              layoutConfig={sceneData.layoutConfig}
+              sceneId={sceneData.id}
+              isPreview={true}
+              onQuizAnswered={handleQuizAnswered}
+              onContinueToDiscussion={handleContinueToDiscussion}
+              onCompleteScene={handleCompleteScene}
+              sceneResponses={sceneResponses}
+              allQuestionsSubmitted={allQuestionsSubmitted}
+              showDiscussion={showDiscussion}
+              isSceneCompleted={isSceneCompleted}
+              canComplete={sceneResponses.length > 0 || !hasInteractiveOptions}
+            />
+          ) : (
+            /* ── Legacy hardcoded layout (fallback) ── */
+            <div className="h-full grid grid-cols-1 xl:grid-cols-12 gap-2">
+              {/* Left Column - Vitals Monitor */}
+              {sceneData.id !== '9' && (
+                <div className="flex items-stretch order-last xl:order-first h-full xl:col-span-3">
+                  <VitalsMonitor vitalsData={sceneData.vitals} displayConfig={sceneData.vitalsDisplayConfig} className="h-full" sceneId={sceneData.id} />
                 </div>
-                <p className="text-gray-100 text-sm leading-relaxed">{sceneData.description}</p>
-              </div>
+              )}
 
-              {/* Content Grid */}
-              <div className="flex-1 overflow-hidden grid grid-cols-1 gap-2 min-h-0 max-h-full lg:grid-cols-5">
-                {/* Content Section */}
-                {sceneData.id !== '9' && (
-                  <div className="flex flex-col space-y-2 h-full min-h-0 overflow-hidden lg:col-span-3">
-                    {/* Video Placeholder */}
-                    <div className="rounded-lg overflow-hidden bg-black/50 backdrop-blur-xl border border-white/20 flex-1 min-h-0 flex items-center justify-center">
-                      <div className="text-white text-center p-8">
-                        <div className="text-6xl mb-4">🎬</div>
-                        <p className="text-lg font-semibold mb-2">Video Content Area</p>
-                        <p className="text-sm text-gray-300">This is where the scene video/interactive content would appear</p>
-                      </div>
-                    </div>
+              {/* Main Content Area */}
+              <div className={`flex flex-col space-y-1 overflow-hidden h-full min-h-0 ${
+                sceneData.id === '9' ? 'xl:col-span-12' : 'xl:col-span-9'
+              }`}>
+                {/* Scene Header */}
+                <div className="flex-shrink-0 p-2 rounded-lg bg-white/10 backdrop-blur-xl border border-white/20">
+                  <div className="flex items-center justify-between mb-1">
+                    <h1 className="text-lg font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent leading-tight">
+                      {sceneData.title}
+                    </h1>
+                  </div>
+                  <p className="text-gray-100 text-sm leading-relaxed">{sceneData.description}</p>
+                </div>
 
-                    {/* Clinical Findings */}
-                    {sceneData.clinicalFindings && sceneData.clinicalFindings.length > 0 && (
-                      <div className="rounded-lg bg-white/5 backdrop-blur-xl border border-white/20 p-3">
-                        <h4 className="text-white font-semibold text-sm mb-2 flex items-center gap-2">
-                          <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
-                          Clinical Findings
-                        </h4>
-                        <div className="space-y-1">
-                          {sceneData.clinicalFindings.map((finding, index) => (
-                            <div key={index} className="flex items-center gap-2 text-xs text-gray-200">
-                              <div className="w-1 h-1 bg-cyan-400 rounded-full"></div>
-                              <span>{finding}</span>
-                            </div>
-                          ))}
+                {/* Content Grid */}
+                <div className="flex-1 overflow-hidden grid grid-cols-1 gap-2 min-h-0 max-h-full lg:grid-cols-5">
+                  {/* Content Section */}
+                  {sceneData.id !== '9' && (
+                    <div className="flex flex-col space-y-2 h-full min-h-0 overflow-hidden lg:col-span-3">
+                      {/* Video Placeholder */}
+                      <div className="rounded-lg overflow-hidden bg-black/50 backdrop-blur-xl border border-white/20 flex-1 min-h-0 flex items-center justify-center">
+                        <div className="text-white text-center p-8">
+                          <div className="text-6xl mb-4">🎬</div>
+                          <p className="text-lg font-semibold mb-2">Video Content Area</p>
+                          <p className="text-sm text-gray-300">This is where the scene video/interactive content would appear</p>
                         </div>
                       </div>
-                    )}
-                  </div>
-                )}
 
-                {/* Quiz/Action Section */}
-                {(sceneData.quiz || sceneData.actionPrompt) && (
-                  <div className={`h-full min-h-0 max-h-full overflow-hidden ${
-                    sceneData.id === '9' ? 'lg:col-span-5' : 'lg:col-span-2'
-                  }`}>
-                    <QuizComponent
-                      quiz={sceneData.quiz}
-                      actionPrompt={sceneData.actionPrompt}
-                      onAnswered={handleQuizAnswered}
-                      onContinueToDiscussion={handleContinueToDiscussion}
-                      onCompleteScene={handleCompleteScene}
-                      sceneId={sceneData.id}
-                      discussionPrompts={sceneData.discussionPrompts}
-                      showDiscussion={showDiscussion}
-                      isSceneCompleted={isSceneCompleted}
-                      canComplete={sceneResponses.length > 0 || !hasInteractiveOptions}
-                      sceneResponses={sceneResponses}
-                      allQuestionsSubmitted={allQuestionsSubmitted}
-                      hasInteractiveOptions={hasInteractiveOptions}
-                    />
-                  </div>
-                )}
+                      {/* Clinical Findings */}
+                      {sceneData.clinicalFindings && sceneData.clinicalFindings.length > 0 && (
+                        <div className="rounded-lg bg-white/5 backdrop-blur-xl border border-white/20 p-3">
+                          <h4 className="text-white font-semibold text-sm mb-2 flex items-center gap-2">
+                            <div className="w-2 h-2 bg-cyan-400 rounded-full"></div>
+                            Clinical Findings
+                          </h4>
+                          <div className="space-y-1">
+                            {sceneData.clinicalFindings.map((finding, index) => (
+                              <div key={index} className="flex items-center gap-2 text-xs text-gray-200">
+                                <div className="w-1 h-1 bg-cyan-400 rounded-full"></div>
+                                <span>{finding}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Quiz/Action Section */}
+                  {(sceneData.quiz || sceneData.actionPrompt) && (
+                    <div className={`h-full min-h-0 max-h-full overflow-hidden ${
+                      sceneData.id === '9' ? 'lg:col-span-5' : 'lg:col-span-2'
+                    }`}>
+                      <QuizComponent
+                        quiz={sceneData.quiz}
+                        actionPrompt={sceneData.actionPrompt}
+                        onAnswered={handleQuizAnswered}
+                        onContinueToDiscussion={handleContinueToDiscussion}
+                        onCompleteScene={handleCompleteScene}
+                        sceneId={sceneData.id}
+                        discussionPrompts={sceneData.discussionPrompts}
+                        showDiscussion={showDiscussion}
+                        isSceneCompleted={isSceneCompleted}
+                        canComplete={sceneResponses.length > 0 || !hasInteractiveOptions}
+                        sceneResponses={sceneResponses}
+                        allQuestionsSubmitted={allQuestionsSubmitted}
+                        hasInteractiveOptions={hasInteractiveOptions}
+                      />
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </div>
 
         {/* Completion Message */}

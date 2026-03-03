@@ -28,7 +28,7 @@ const PatientVitalsEditor: React.FC<PatientVitalsEditorProps> = ({ vitals, onCha
   };
 
   return (
-    <div className="bg-gradient-to-r from-red-50 to-pink-50 p-6 rounded-xl border-2 border-red-200">
+    <div className="bg-red-50 p-6 rounded-xl border-2 border-red-200">
       <h3 className="text-lg font-bold text-gray-900 mb-4 flex items-center gap-2">
         <Heart className="w-5 h-5 text-red-500" />
         Patient Vitals & Biometrics

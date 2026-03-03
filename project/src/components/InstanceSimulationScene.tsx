@@ -11,6 +11,7 @@ import TabContainer from './TabContainer';
 import AudioPlayer from './AudioPlayer';
 import SBARChart from './SBARChart';
 import ProgressBar from './ProgressBar';
+import DynamicSceneLayout from './DynamicSceneLayout';
 import { ChevronLeft, ChevronRight, Clock, RefreshCw, Share2, CheckCircle } from 'lucide-react';
 
 const InstanceSimulationScene: React.FC = () => {
@@ -20,6 +21,7 @@ const InstanceSimulationScene: React.FC = () => {
   const [sceneStartTime] = useState(Date.now());
   const [sceneResponses, setSceneResponses] = useState<Array<{ questionId: string; answer: string; isCorrect: boolean }>>([]);
   const [allQuestionsSubmitted, setAllQuestionsSubmitted] = useState(false);
+  const [showDiscussion, setShowDiscussion] = useState(false);
   const [currentPlayingAudio, setCurrentPlayingAudio] = useState<number | null>(null);
 
   const currentSceneNumber = parseInt(sceneId || '1');
@@ -77,6 +79,15 @@ const InstanceSimulationScene: React.FC = () => {
       }
     }
   }, [state.instance]);
+
+  const handleQuizAnswered = (responses: Array<{ questionId: string; answer: string; isCorrect: boolean }>) => {
+    setSceneResponses(responses);
+    setAllQuestionsSubmitted(true);
+  };
+
+  const handleContinueToDiscussion = () => {
+    setShowDiscussion(true);
+  };
 
   // Handle scene completion
   const handleCompleteScene = async () => {
@@ -228,6 +239,29 @@ const InstanceSimulationScene: React.FC = () => {
 
         {/* Main Content - Optimized for no initial scrolling */}
         <div className="flex-1 overflow-hidden px-4 pb-12">
+          {sceneData.layoutConfig ? (
+            <DynamicSceneLayout
+              scene={sceneData}
+              layoutConfig={sceneData.layoutConfig}
+              sceneId={sceneId || sceneData.id}
+              videoUrl={videoData?.video_url || sceneData.videoUrl}
+              videosLoading={false}
+              sceneAudioFiles={sceneAudioFiles}
+              currentPlayingAudio={currentPlayingAudio}
+              onAudioPlay={setCurrentPlayingAudio}
+              onAudioPause={() => setCurrentPlayingAudio(null)}
+              onAudioEnded={() => setCurrentPlayingAudio(null)}
+              onQuizAnswered={handleQuizAnswered}
+              onContinueToDiscussion={handleContinueToDiscussion}
+              onCompleteScene={handleCompleteScene}
+              sceneResponses={sceneResponses}
+              allQuestionsSubmitted={allQuestionsSubmitted}
+              showDiscussion={showDiscussion}
+              isSceneCompleted={isCurrentSceneCompleted}
+              canComplete={sceneResponses.length > 0}
+              allResponses={state.userData.responses}
+            />
+          ) : (
           <div className="h-full grid grid-cols-1 xl:grid-cols-12 gap-2">
             {/* Left Column - Vitals Monitor - Hidden for Scene 9 */}
             {currentSceneNumber !== 9 && (
@@ -438,6 +472,7 @@ const InstanceSimulationScene: React.FC = () => {
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* Navigation Controls - Fixed at bottom */}

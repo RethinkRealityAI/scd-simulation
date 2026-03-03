@@ -7,6 +7,7 @@ import VideoPlayer from './VideoPlayer';
 import TabContainer from './TabContainer';
 import AudioPlayer from './AudioPlayer';
 import SBARChart from './SBARChart';
+import DynamicSceneLayout from './DynamicSceneLayout';
 import { useAudioData } from '../hooks/useAudioData';
 import ProgressBar from './ProgressBar';
 import { useVideoData } from '../hooks/useVideoData';
@@ -294,6 +295,31 @@ const SimulationScene: React.FC = () => {
 
         {/* Main Content - Optimized for no initial scrolling */}
         <div className="flex-1 overflow-hidden px-4 pb-12">
+          {scene.layoutConfig ? (
+            /* ── Dynamic layout from SceneBuilder ── */
+            <DynamicSceneLayout
+              scene={scene}
+              layoutConfig={scene.layoutConfig}
+              sceneId={sceneId || '1'}
+              videoUrl={videoUrl}
+              videosLoading={videosLoading}
+              sceneAudioFiles={sceneAudioFiles}
+              currentPlayingAudio={currentPlayingAudio}
+              onAudioPlay={setCurrentPlayingAudio}
+              onAudioPause={() => setCurrentPlayingAudio(null)}
+              onAudioEnded={handleAudioEnded}
+              onQuizAnswered={handleQuizAnswered}
+              onContinueToDiscussion={handleContinueToDiscussion}
+              onCompleteScene={handleCompleteScene}
+              sceneResponses={sceneResponses}
+              allQuestionsSubmitted={allQuestionsSubmitted}
+              showDiscussion={showDiscussion}
+              isSceneCompleted={isCurrentSceneCompleted}
+              canComplete={sceneResponses.length > 0}
+              allResponses={state.userData.responses}
+            />
+          ) : (
+          /* ── Legacy hardcoded layout (fallback) ── */
           <div className="h-full grid grid-cols-1 xl:grid-cols-12 gap-2">
             {/* Left Column - Vitals Monitor - Hidden for Scene 9 */}
             {currentSceneNumber !== 9 && (
@@ -542,6 +568,7 @@ const SimulationScene: React.FC = () => {
               </div>
             </div>
           </div>
+          )}
         </div>
 
         {/* Navigation Overlay - Reduced size and better positioning */}

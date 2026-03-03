@@ -3,6 +3,275 @@ import { ActionPrompt } from '../components/QuizComponent';
 
 export type ScoringCategory = 'timelyPainManagement' | 'clinicalJudgment' | 'communication' | 'culturalSafety' | 'biasMitigation';
 
+// ─── Scene Layout / Builder Types ────────────────────────────────────────────
+
+export type SceneComponentType =
+  | 'vitals-monitor'
+  | 'video-player'
+  | 'quiz-panel'
+  | 'clinical-findings'
+  | 'scene-header'
+  | 'action-prompt'
+  | 'audio-player';
+
+export interface SceneComponentLayout {
+  id: string;
+  type: SceneComponentType;
+  enabled: boolean;
+  /** react-grid-layout grid position (12-col grid) */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  minW?: number;
+  minH?: number;
+  maxW?: number;
+  maxH?: number;
+}
+
+export interface SceneLayoutConfig {
+  components: SceneComponentLayout[];
+}
+
+/** Default layout matching the current hardcoded SimulationScene grid */
+export const defaultSceneLayoutConfig: SceneLayoutConfig = {
+  components: [
+    { id: 'vitals-monitor', type: 'vitals-monitor', enabled: true, x: 0, y: 0, w: 3, h: 10, minW: 2, minH: 4 },
+    { id: 'scene-header',   type: 'scene-header',   enabled: true, x: 3, y: 0, w: 9, h: 2, minW: 4, minH: 1, maxH: 3 },
+    { id: 'video-player',   type: 'video-player',   enabled: true, x: 3, y: 2, w: 6, h: 6, minW: 3, minH: 3 },
+    { id: 'clinical-findings', type: 'clinical-findings', enabled: true, x: 3, y: 8, w: 6, h: 2, minW: 2, minH: 1 },
+    { id: 'quiz-panel',     type: 'quiz-panel',     enabled: true, x: 9, y: 2, w: 3, h: 8, minW: 2, minH: 3 },
+    { id: 'action-prompt',  type: 'action-prompt',  enabled: false, x: 9, y: 2, w: 3, h: 8, minW: 2, minH: 3 },
+    { id: 'audio-player',   type: 'audio-player',   enabled: false, x: 3, y: 8,  w: 6, h: 2, minW: 3, minH: 1 },
+  ],
+};
+
+const SCENE_COMPONENT_TYPES: SceneComponentType[] = [
+  'vitals-monitor',
+  'video-player',
+  'quiz-panel',
+  'clinical-findings',
+  'scene-header',
+  'action-prompt',
+  'audio-player',
+];
+
+function isSceneComponentType(value: unknown): value is SceneComponentType {
+  return typeof value === 'string' && SCENE_COMPONENT_TYPES.includes(value as SceneComponentType);
+}
+
+function parseNumber(value: unknown, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (typeof value === 'string' && value.trim() !== '') {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) return parsed;
+  }
+  return fallback;
+}
+
+/**
+ * Ensures persisted layout config remains usable across schema/UI versions.
+ * If the stored layout only contains a subset of components, this merges the
+ * persisted values into the default layout so required components still render.
+ */
+export function normalizeSceneLayoutConfig(layoutConfig?: unknown): SceneLayoutConfig {
+  const defaults = defaultSceneLayoutConfig.components.map(component => ({ ...component }));
+
+  if (!layoutConfig || typeof layoutConfig !== 'object') {
+    return { components: defaults };
+  }
+
+  const rawComponents = (layoutConfig as { components?: unknown }).components;
+  if (!Array.isArray(rawComponents)) {
+    return { components: defaults };
+  }
+
+  const persistedByType = new Map<SceneComponentType, Partial<SceneComponentLayout>>();
+
+  for (const rawComponent of rawComponents) {
+    if (!rawComponent || typeof rawComponent !== 'object') continue;
+
+    const candidate = rawComponent as Partial<SceneComponentLayout> & { id?: unknown; type?: unknown };
+    const typeFromObject = isSceneComponentType(candidate.type) ? candidate.type : undefined;
+    const typeFromId = isSceneComponentType(candidate.id) ? candidate.id : undefined;
+    const resolvedType = typeFromObject || typeFromId;
+
+    if (!resolvedType) continue;
+    if (!persistedByType.has(resolvedType)) {
+      persistedByType.set(resolvedType, candidate);
+    }
+  }
+
+  return {
+    components: defaults.map(defaultComponent => {
+      const persisted = persistedByType.get(defaultComponent.type);
+      if (!persisted) return defaultComponent;
+
+      return {
+        ...defaultComponent,
+        ...persisted,
+        id: defaultComponent.id,
+        type: defaultComponent.type,
+        enabled:
+          typeof persisted.enabled === 'boolean'
+            ? persisted.enabled
+            : defaultComponent.enabled,
+        x: parseNumber(persisted.x, defaultComponent.x),
+        y: parseNumber(persisted.y, defaultComponent.y),
+        w: parseNumber(persisted.w, defaultComponent.w),
+        h: parseNumber(persisted.h, defaultComponent.h),
+        minW: parseNumber(persisted.minW, defaultComponent.minW ?? 1),
+        minH: parseNumber(persisted.minH, defaultComponent.minH ?? 1),
+        maxW:
+          persisted.maxW === null || persisted.maxW === undefined
+            ? defaultComponent.maxW
+            : parseNumber(persisted.maxW, defaultComponent.maxW ?? 12),
+        maxH:
+          persisted.maxH === null || persisted.maxH === undefined
+            ? defaultComponent.maxH
+            : parseNumber(persisted.maxH, defaultComponent.maxH ?? 10),
+      };
+    }),
+  };
+}
+
+const ACTION_PROMPT_TYPE_ALIASES: Record<string, ActionPrompt['type']> = {
+  'action-selection': 'action-selection',
+  action_selection: 'action-selection',
+  'action-select': 'action-selection',
+  single: 'action-selection',
+  'single-select': 'action-selection',
+  'single-choice': 'action-selection',
+  multiselect: 'multi-select',
+  'multi-select': 'multi-select',
+  multi_select: 'multi-select',
+  sbar: 'sbar',
+  reflection: 'reflection',
+};
+
+function asTrimmedString(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function normalizeActionPromptType(
+  value: unknown,
+  fallback?: ActionPrompt['type'],
+): ActionPrompt['type'] | undefined {
+  const normalized = asTrimmedString(value)?.toLowerCase();
+  if (!normalized) return fallback;
+  return ACTION_PROMPT_TYPE_ALIASES[normalized] || fallback;
+}
+
+function normalizeStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map(item => {
+      if (typeof item === 'string') return item.trim();
+      if (!item || typeof item !== 'object') return '';
+      const candidate = item as { label?: unknown; text?: unknown; value?: unknown };
+      return (
+        asTrimmedString(candidate.label) ||
+        asTrimmedString(candidate.text) ||
+        asTrimmedString(candidate.value) ||
+        ''
+      );
+    })
+    .filter(Boolean);
+}
+
+/**
+ * Backward-compatible action prompt normalization for legacy DB payloads.
+ * Ensures action prompts always match the QuizComponent contract.
+ */
+export function normalizeActionPromptConfig(
+  rawPrompt?: unknown,
+  fallbackPrompt?: ActionPrompt,
+): ActionPrompt | undefined {
+  let source: unknown = rawPrompt;
+  if (Array.isArray(source)) {
+    source = source.find(item => item && typeof item === 'object');
+  }
+
+  if (!source || typeof source !== 'object') {
+    return fallbackPrompt;
+  }
+
+  const promptObject = source as Record<string, unknown>;
+
+  const rawOptions =
+    promptObject.options ??
+    promptObject.choices ??
+    promptObject.answers;
+  const rawCorrectAnswers =
+    promptObject.correctAnswers ??
+    promptObject.correct_answers ??
+    promptObject.correctAnswer ??
+    promptObject.correct_answer ??
+    promptObject.correct;
+
+  const options = normalizeStringArray(rawOptions);
+  const correctAnswers = normalizeStringArray(Array.isArray(rawCorrectAnswers) ? rawCorrectAnswers : [rawCorrectAnswers]);
+
+  let type = normalizeActionPromptType(
+    promptObject.type ??
+      promptObject.prompt_type ??
+      promptObject.promptType ??
+      promptObject.action_type ??
+      promptObject.actionType,
+    fallbackPrompt?.type,
+  );
+
+  if (!type) {
+    if (options.length > 0) {
+      type = correctAnswers.length > 1 ? 'multi-select' : 'action-selection';
+    } else {
+      type = 'reflection';
+    }
+  }
+
+  const resolvedOptions =
+    (type === 'action-selection' || type === 'multi-select')
+      ? (options.length > 0 ? options : (fallbackPrompt?.options || []))
+      : undefined;
+
+  let resolvedCorrectAnswers =
+    (type === 'action-selection' || type === 'multi-select')
+      ? (correctAnswers.length > 0 ? correctAnswers : (fallbackPrompt?.correctAnswers || []))
+      : undefined;
+
+  if (type === 'action-selection' && resolvedCorrectAnswers && resolvedCorrectAnswers.length > 1) {
+    resolvedCorrectAnswers = [resolvedCorrectAnswers[0]];
+  }
+
+  return {
+    type,
+    title:
+      asTrimmedString(promptObject.title) ||
+      asTrimmedString(promptObject.prompt_title) ||
+      asTrimmedString(promptObject.promptTitle) ||
+      asTrimmedString(promptObject.question) ||
+      fallbackPrompt?.title ||
+      '',
+    content:
+      asTrimmedString(promptObject.content) ||
+      asTrimmedString(promptObject.prompt) ||
+      asTrimmedString(promptObject.description) ||
+      asTrimmedString(promptObject.instructions) ||
+      fallbackPrompt?.content ||
+      '',
+    options: resolvedOptions,
+    correctAnswers: resolvedCorrectAnswers,
+    explanation:
+      asTrimmedString(promptObject.explanation) ||
+      asTrimmedString(promptObject.feedback) ||
+      asTrimmedString(promptObject.rationale) ||
+      fallbackPrompt?.explanation,
+  };
+}
+
 export interface VitalsVisibility {
   heartRate: boolean;
   bloodPressure: boolean;
@@ -101,6 +370,7 @@ export interface SceneData {
   actionPrompt?: ActionPrompt;
   discussionPrompts?: string[];
   isCompletionScene?: boolean;
+  layoutConfig?: SceneLayoutConfig;
 }
 
 export const scenes: SceneData[] = [

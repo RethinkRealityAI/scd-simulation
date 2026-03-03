@@ -39,6 +39,7 @@ interface QuizComponentProps {
   isSceneCompleted: boolean;
   sceneResponses: Array<{ questionId: string; answer: string; isCorrect: boolean }>;
   allQuestionsSubmitted: boolean;
+  hideCompletionControls?: boolean;
 }
 
 const QuizComponent: React.FC<QuizComponentProps> = ({
@@ -52,7 +53,8 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
   showDiscussion,
   isSceneCompleted,
   sceneResponses,
-  allQuestionsSubmitted
+  allQuestionsSubmitted,
+  hideCompletionControls = false,
 }) => {
   const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
   const [userAnswers, setUserAnswers] = useState<Record<string, string | string[]>>(() => {
@@ -288,21 +290,23 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
           ))}
         </div>
 
-        <div className="flex-shrink-0">
-          <button
-            onClick={onCompleteScene}
-            className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-sm
-                     hover:from-green-400 hover:to-emerald-400 transition-all duration-200 
-                     flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
-          >
-            <Check className="w-3 h-3" />
-            Complete {(() => {
-              const sceneNumber = parseInt(sceneId);
-              const scene = scenes[sceneNumber - 1];
-              return scene?.title?.replace(/^Scene \d+:\s*/, '') || `Scene ${sceneNumber}`;
-            })()}
-          </button>
-        </div>
+        {!hideCompletionControls && (
+          <div className="flex-shrink-0">
+            <button
+              onClick={onCompleteScene}
+              className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-sm
+                       hover:from-green-400 hover:to-emerald-400 transition-all duration-200 
+                       flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+            >
+              <Check className="w-3 h-3" />
+              Complete {(() => {
+                const sceneNumber = parseInt(sceneId);
+                const scene = scenes[sceneNumber - 1];
+                return scene?.title?.replace(/^Scene \d+:\s*/, '') || `Scene ${sceneNumber}`;
+              })()}
+            </button>
+          </div>
+        )}
       </div>
     );
   }
@@ -317,19 +321,21 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
           <p className="text-gray-300 text-xs">Review the content and proceed when ready</p>
         </div>
 
-        <button
-          onClick={onCompleteScene}
-          className="py-2 px-4 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-sm
-                   hover:from-green-400 hover:to-emerald-400 transition-all duration-200 
-                   flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
-        >
-          <Check className="w-3 h-3" />
-          Complete {(() => {
-            const sceneNumber = parseInt(sceneId);
-            const scene = scenes[sceneNumber - 1];
-            return scene?.title || `Scene ${sceneNumber}`;
-          })()}
-        </button>
+        {!hideCompletionControls && (
+          <button
+            onClick={onCompleteScene}
+            className="py-2 px-4 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-sm
+                     hover:from-green-400 hover:to-emerald-400 transition-all duration-200 
+                     flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+          >
+            <Check className="w-3 h-3" />
+            Complete {(() => {
+              const sceneNumber = parseInt(sceneId);
+              const scene = scenes[sceneNumber - 1];
+              return scene?.title || `Scene ${sceneNumber}`;
+            })()}
+          </button>
+        )}
       </div>
     );
   }
@@ -363,7 +369,7 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
             </div>
           )}
           <div className="flex-1" />
-          {shouldShowCompleteButton && !isSceneCompleted && (
+          {!hideCompletionControls && shouldShowCompleteButton && !isSceneCompleted && (
             <button
               onClick={hasDiscussionPrompts ? onContinueToDiscussion : onCompleteScene}
               className="w-full py-2.5 px-4 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-sm
@@ -489,17 +495,19 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
                   </div>
 
                   {/* Submit Button - Inside Discussion Prompt */}
-                  <div className="flex-shrink-0">
-                    <button
-                      onClick={onCompleteScene}
-                      className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-sm
-                               hover:from-green-400 hover:to-emerald-400 transition-all duration-200 
-                               flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
-                    >
-                      <Check className="w-3 h-3" />
-                      Complete Reflection
-                    </button>
-                  </div>
+                  {!hideCompletionControls && (
+                    <div className="flex-shrink-0">
+                      <button
+                        onClick={onCompleteScene}
+                        className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-sm
+                                 hover:from-green-400 hover:to-emerald-400 transition-all duration-200 
+                                 flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
+                      >
+                        <Check className="w-3 h-3" />
+                        Complete Reflection
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -976,7 +984,7 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
         )}
 
         {/* Continue to Discussion Button - only appears if there are discussion prompts */}
-        {hasDiscussionPrompts && (allQuestionsSubmitted || actionSubmitted) && !showDiscussion && !isSceneCompleted && (
+        {!hideCompletionControls && hasDiscussionPrompts && (allQuestionsSubmitted || actionSubmitted) && !showDiscussion && !isSceneCompleted && (
           <button
             onClick={onContinueToDiscussion}
             className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-purple-500 to-indigo-500 text-white font-semibold text-sm
@@ -989,7 +997,7 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
         )}
 
         {/* Complete Scene Button - shows when appropriate */}
-        {!isSceneCompleted && shouldShowCompleteButton && (
+        {!hideCompletionControls && !isSceneCompleted && shouldShowCompleteButton && (
           <>
             {/* For scenes WITHOUT discussion prompts - show after assessment */}
             {!hasDiscussionPrompts && (allQuestionsSubmitted || actionSubmitted || allQuestionsAnswered) && (() => {
