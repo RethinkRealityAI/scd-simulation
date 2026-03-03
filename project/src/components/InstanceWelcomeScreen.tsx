@@ -5,7 +5,7 @@ import WelcomeModal from './WelcomeModal';
 import { ArrowRight, Stethoscope, Brain, Target, Shield, Users, Award } from 'lucide-react';
 import { useWelcomeConfig } from '../hooks/useWelcomeConfig';
 
-const iconMap: { [key: string]: any } = {
+const iconMap: Record<string, React.ElementType> = {
   Stethoscope,
   Brain,
   Target,
@@ -43,7 +43,7 @@ const InstanceWelcomeScreen: React.FC = () => {
   useEffect(() => {
     if (state.instance?.branding_config) {
       const branding = state.instance.branding_config;
-      
+
       // Apply CSS custom properties
       const root = document.documentElement;
       root.style.setProperty('--primary-color', branding.primary_color);
@@ -56,11 +56,11 @@ const InstanceWelcomeScreen: React.FC = () => {
       // Apply custom CSS if provided
       if (branding.custom_css) {
         const styleId = 'instance-custom-css';
-        let existingStyle = document.getElementById(styleId);
+        const existingStyle = document.getElementById(styleId);
         if (existingStyle) {
           existingStyle.remove();
         }
-        
+
         const style = document.createElement('style');
         style.id = styleId;
         style.textContent = branding.custom_css;
@@ -83,7 +83,7 @@ const InstanceWelcomeScreen: React.FC = () => {
 
   const handleFormSubmit = () => {
     if (!isFormValid()) return;
-    
+
     if (config.modal_enabled) {
       setShowModal(true);
     } else {
@@ -94,18 +94,18 @@ const InstanceWelcomeScreen: React.FC = () => {
   const handleStartSimulation = () => {
     dispatch({
       type: 'INITIALIZE_USER',
-      payload: { 
-        educationLevel, 
-        organization, 
-        school, 
-        year, 
-        program, 
-        field, 
+      payload: {
+        educationLevel,
+        organization,
+        school,
+        year,
+        program,
+        field,
         howHeard,
         instanceId: state.instance?.id || ''
       }
     });
-    
+
     navigate(`/sim/${state.instance?.institution_id}/scene/1`);
   };
 
@@ -132,7 +132,7 @@ const InstanceWelcomeScreen: React.FC = () => {
   }
 
   return (
-    <div 
+    <div
       className="h-screen overflow-hidden relative"
       style={{
         backgroundImage: `url(${config.background_image_url})`,
@@ -143,7 +143,7 @@ const InstanceWelcomeScreen: React.FC = () => {
       }}
     >
       {/* Dark overlay with configurable opacity */}
-      <div 
+      <div
         className="absolute inset-0 bg-black"
         style={{ opacity: config.background_overlay_opacity / 100 }}
       ></div>
@@ -191,7 +191,7 @@ const InstanceWelcomeScreen: React.FC = () => {
         <div className="flex-1 flex flex-col items-center justify-center p-4 lg:p-6 relative">
           {/* Registration Form */}
           <div className="w-full max-w-xl">
-            <div 
+            <div
               className={`bg-white/${config.form_background_opacity} ${config.form_backdrop_blur} rounded-2xl p-6 border border-white/${config.form_border_opacity} shadow-2xl`}
             >
               <div className="text-center mb-6">
@@ -367,7 +367,7 @@ const InstanceWelcomeScreen: React.FC = () => {
 
       {/* Welcome Modal */}
       {config.modal_enabled && (
-        <WelcomeModal 
+        <WelcomeModal
           isOpen={showModal}
           onClose={() => setShowModal(false)}
           onStart={handleStartSimulation}

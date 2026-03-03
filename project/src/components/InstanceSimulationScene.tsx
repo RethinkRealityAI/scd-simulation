@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useInstanceSimulation } from '../context/InstanceSimulationContext';
 import { useSceneConfig } from '../hooks/useSceneConfig';
@@ -17,21 +17,21 @@ const InstanceSimulationScene: React.FC = () => {
   const { sceneId, institutionId } = useParams<{ sceneId: string; institutionId: string }>();
   const navigate = useNavigate();
   const { state, dispatch } = useInstanceSimulation();
-  const [sceneStartTime, setSceneStartTime] = useState(Date.now());
+  const [sceneStartTime] = useState(Date.now());
   const [sceneResponses, setSceneResponses] = useState<Array<{ questionId: string; answer: string; isCorrect: boolean }>>([]);
   const [allQuestionsSubmitted, setAllQuestionsSubmitted] = useState(false);
   const [currentPlayingAudio, setCurrentPlayingAudio] = useState<number | null>(null);
 
   const currentSceneNumber = parseInt(sceneId || '1');
-  
+
   // Load scene configuration from database (with static fallback)
-  const { sceneData, loading: sceneLoading } = useSceneConfig(currentSceneNumber);
-  
+  const { sceneData, loading: sceneLoading } = useSceneConfig(currentSceneNumber, state.instance?.id);
+
   // Get video URL from database first, then fallback to scene data
   const { videos } = useVideoData();
   const videoData = videos.find(v => v.scene_id === currentSceneNumber);
-  const videoUrl = videoData?.video_url || sceneData?.videoUrl || '';
-  
+
+
   // Get audio files for this scene
   const { getAudioFilesByScene } = useAudioData();
   const sceneAudioFiles = getAudioFilesByScene(currentSceneNumber);
@@ -46,13 +46,13 @@ const InstanceSimulationScene: React.FC = () => {
   const isCurrentSceneCompleted = state.userData.completedScenes.has(currentSceneNumber);
 
   // Check if this is the completion scene (Scene 10)
-  const isCompletionScene = currentSceneNumber === state.userData.totalScenes;
+
 
   // Apply instance-specific branding
   useEffect(() => {
     if (state.instance?.branding_config) {
       const branding = state.instance.branding_config;
-      
+
       // Apply CSS custom properties
       const root = document.documentElement;
       root.style.setProperty('--primary-color', branding.primary_color);
@@ -65,11 +65,11 @@ const InstanceSimulationScene: React.FC = () => {
       // Apply custom CSS if provided
       if (branding.custom_css) {
         const styleId = 'instance-custom-css';
-        let existingStyle = document.getElementById(styleId);
+        const existingStyle = document.getElementById(styleId);
         if (existingStyle) {
           existingStyle.remove();
         }
-        
+
         const style = document.createElement('style');
         style.id = styleId;
         style.textContent = branding.custom_css;
@@ -129,12 +129,7 @@ const InstanceSimulationScene: React.FC = () => {
       // Update local state
       dispatch({
         type: 'COMPLETE_SCENE',
-        payload: {
-          sceneId: currentSceneNumber,
-          timeSpent,
-          responses: sceneResponses,
-          timestamp: new Date().toISOString()
-        }
+        payload: currentSceneNumber
       });
 
       console.log('Data submitted successfully');
@@ -155,7 +150,7 @@ const InstanceSimulationScene: React.FC = () => {
   const handleNextScene = () => {
     const nextScene = currentSceneNumber + 1;
     const canAccessNext = nextScene <= maxAccessibleScene || isCurrentSceneCompleted;
-    
+
     console.log('Navigation check:', {
       nextScene,
       maxAccessibleScene,
@@ -163,7 +158,7 @@ const InstanceSimulationScene: React.FC = () => {
       canAccessNext,
       totalScenes: state.userData.totalScenes
     });
-    
+
     if (canAccessNext && nextScene <= state.userData.totalScenes) {
       navigate(`/sim/${institutionId}/scene/${nextScene}`);
     } else if (nextScene > state.userData.totalScenes) {
@@ -209,10 +204,10 @@ const InstanceSimulationScene: React.FC = () => {
   }
 
   return (
-    <div 
+    <div
       className="h-screen overflow-hidden relative"
       style={{
-        backgroundImage: state.instance?.branding_config.background_image_url || 'url(https://i.ibb.co/BH6c7SRj/Splas.jpg)',
+        backgroundImage: (state.instance?.branding_config as Record<string, string>)?.background_image_url || 'url(https://i.ibb.co/BH6c7SRj/Splas.jpg)',
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         backgroundRepeat: 'no-repeat'
@@ -224,8 +219,8 @@ const InstanceSimulationScene: React.FC = () => {
       <div className="relative z-10 h-full flex flex-col">
         {/* Progress Bar - Minimal padding and full width */}
         <div className="flex-shrink-0 px-4 py-1">
-          <ProgressBar 
-            current={currentSceneNumber} 
+          <ProgressBar
+            current={currentSceneNumber}
             total={state.userData.totalScenes}
             completedScenes={state.userData.completedScenes}
           />
@@ -237,14 +232,13 @@ const InstanceSimulationScene: React.FC = () => {
             {/* Left Column - Vitals Monitor - Hidden for Scene 9 */}
             {currentSceneNumber !== 9 && (
               <div className="flex items-stretch order-last xl:order-first h-full xl:col-span-3">
-                <VitalsMonitor vitalsData={sceneData.vitals} className="h-full" sceneId={sceneId} />
+                <VitalsMonitor vitalsData={sceneData.vitals} displayConfig={sceneData.vitalsDisplayConfig} className="h-full" sceneId={sceneId} />
               </div>
             )}
 
             {/* Main Content Area - Full width for Scene 9, consistent for all other scenes */}
-            <div className={`flex flex-col space-y-1 overflow-hidden h-full min-h-0 ${
-              currentSceneNumber === 9 ? 'xl:col-span-12' : 'xl:col-span-9'
-            }`}>
+            <div className={`flex flex-col space-y-1 overflow-hidden h-full min-h-0 ${currentSceneNumber === 9 ? 'xl:col-span-12' : 'xl:col-span-9'
+              }`}>
               {/* Scene Header - Compact */}
               <div className="flex-shrink-0 p-2 rounded-lg bg-white/10 backdrop-blur-xl border border-white/20">
                 <div className="flex items-center justify-between mb-1">
@@ -257,7 +251,7 @@ const InstanceSimulationScene: React.FC = () => {
                       <div className="flex items-center gap-2 mr-3">
                         <button
                           onClick={() => {
-                            dispatch({ type: 'RESET_SIMULATION' });
+                            dispatch({ type: 'RESET_SCENE_STATE' });
                             navigate(`/sim/${institutionId}`);
                           }}
                           className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-500 text-white font-semibold text-xs
@@ -266,7 +260,7 @@ const InstanceSimulationScene: React.FC = () => {
                           <RefreshCw className="w-3 h-3" />
                           Restart Simulation
                         </button>
-                        
+
                         <button
                           onClick={() => {
                             const results = {
@@ -295,111 +289,113 @@ const InstanceSimulationScene: React.FC = () => {
               </div>
 
               {/* Content Grid - Scene 4 gets different proportions for SBAR expansion */}
-              <div className={`flex-1 overflow-hidden grid grid-cols-1 gap-2 min-h-0 max-h-full transition-all duration-700 ease-in-out ${
-                currentSceneNumber === 4 ? 'lg:grid-cols-7' : 'lg:grid-cols-5'
-              }`}>
+              <div className={`flex-1 overflow-hidden grid grid-cols-1 gap-2 min-h-0 max-h-full transition-all duration-700 ease-in-out ${currentSceneNumber === 4 ? 'lg:grid-cols-7' : 'lg:grid-cols-5'
+                }`}>
                 {/* Video and Audio Section - Hidden for Scene 9, expanded for Scene 4 */}
                 {currentSceneNumber !== 9 && (
-                  <div className={`flex flex-col space-y-2 h-full min-h-0 overflow-hidden transition-all duration-700 ease-in-out ${
-                    currentSceneNumber === 4 ? 'lg:col-span-4' : 'lg:col-span-3'
-                  }`}>
-                  {/* Video/Interactive Container - Scene 2 gets tabbed interface */}
-                  {currentSceneNumber === 2 ? (
-                    <TabContainer
-                      videoUrl={videoData?.video_url || sceneData.videoUrl || ''}
-                      iframeUrl={sceneData.iframeUrl}
-                      posterUrl={sceneData.posterUrl}
-                      sceneTitle={sceneData.title}
-                    />
-                  ) : (
-                    <div className="rounded-lg overflow-hidden bg-black/50 backdrop-blur-xl border border-white/20 flex-1 min-h-0">
-                      <div className="w-full h-full">
-                        {sceneData.iframeUrl ? (
-                          <iframe
-                            src={sceneData.iframeUrl}
-                            className="w-full h-full border-0"
-                            title={`${sceneData.title} Interactive Content`}
-                            allowFullScreen
-                            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                            sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
-                            loading="lazy"
-                            onError={(e) => {
-                              console.error('Iframe failed to load:', e);
-                            }}
-                            onLoad={() => {
-                              console.log('Iframe loaded successfully');
-                            }}
-                          />
-                        ) : currentSceneNumber === 8 ? (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
-                            <div className="text-center text-white p-8">
-                              <h3 className="text-xl font-semibold mb-4">Interactive Quiz</h3>
-                              <p className="text-gray-300">Complete the quiz below to proceed</p>
-                            </div>
-                          </div>
-                        ) : videoData?.video_url || sceneData.videoUrl ? (
-                          <VideoPlayer
-                            videoUrl={videoData.video_url || sceneData.videoUrl}
-                            posterUrl={videoData.poster_url || sceneData.posterUrl}
-                            className="w-full h-full"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
-                            <div className="text-center text-white p-8">
-                              <h3 className="text-xl font-semibold mb-4">No Video Available</h3>
-                              <p className="text-gray-300">Video content will be available soon</p>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Audio Player - Only show if there are audio files */}
-                  {sceneAudioFiles && sceneAudioFiles.length > 0 && (
-                    <div className="flex-shrink-0 bg-white/10 backdrop-blur-xl border border-white/20 rounded-lg p-3">
-                      <div className="space-y-1 overflow-y-auto max-h-24">
-                        {sceneAudioFiles
-                          .sort((a, b) => a.display_order - b.display_order)
-                          .map((audioFile, index) => (
-                            <AudioPlayer
-                              key={audioFile.id}
-                              audioUrl={audioFile.audio_url}
-                              title={audioFile.audio_title}
-                              characterName={audioFile.character?.character_name || 'Unknown'}
-                              avatarUrl={audioFile.character?.avatar_url}
-                              subtitles={audioFile.audio_description}
-                              autoPlay={index === 0 && currentPlayingAudio === 0}
-                              isCurrentlyPlaying={currentPlayingAudio === index}
-                              onPlay={() => setCurrentPlayingAudio(index)}
-                              onPause={() => setCurrentPlayingAudio(null)}
-                              onEnded={() => setCurrentPlayingAudio(null)}
-                              className="pill"
-                              isHidden={audioFile.hide_player || false}
+                  <div className={`flex flex-col space-y-2 h-full min-h-0 overflow-hidden transition-all duration-700 ease-in-out ${currentSceneNumber === 4 ? 'lg:col-span-4' : 'lg:col-span-3'
+                    }`}>
+                    {/* Video/Interactive Container - Scene 2 gets tabbed interface */}
+                    {currentSceneNumber === 2 ? (
+                      <TabContainer
+                        videoUrl={videoData?.video_url || sceneData.videoUrl || ''}
+                        iframeUrl={sceneData.iframeUrl}
+                        posterUrl={sceneData.posterUrl}
+                        sceneTitle={sceneData.title}
+                      />
+                    ) : (
+                      <div className="rounded-lg overflow-hidden bg-black/50 backdrop-blur-xl border border-white/20 flex-1 min-h-0">
+                        <div className="w-full h-full">
+                          {sceneData.iframeUrl ? (
+                            <iframe
+                              src={sceneData.iframeUrl}
+                              className="w-full h-full border-0"
+                              title={`${sceneData.title} Interactive Content`}
+                              allowFullScreen
+                              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                              sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-presentation"
+                              loading="lazy"
+                              onError={(e) => {
+                                console.error('Iframe failed to load:', e);
+                              }}
+                              onLoad={() => {
+                                console.log('Iframe loaded successfully');
+                              }}
                             />
-                          ))}
+                          ) : currentSceneNumber === 8 ? (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
+                              <div className="text-center text-white p-8">
+                                <h3 className="text-xl font-semibold mb-4">Interactive Quiz</h3>
+                                <p className="text-gray-300">Complete the quiz below to proceed</p>
+                              </div>
+                            </div>
+                          ) : videoData?.video_url || sceneData?.videoUrl ? (
+                            <VideoPlayer
+                              videoUrl={(videoData?.video_url || sceneData?.videoUrl)!}
+                              poster={videoData?.poster_url || sceneData?.posterUrl}
+                              className="w-full h-full"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-gray-900 to-gray-800">
+                              <div className="text-center text-white p-8">
+                                <h3 className="text-xl font-semibold mb-4">No Video Available</h3>
+                                <p className="text-gray-300">Video content will be available soon</p>
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  )}
-                </div>
+                    )}
+
+                    {/* Audio Player - Only show if there are audio files */}
+                    {sceneAudioFiles && sceneAudioFiles.length > 0 && (
+                      <div className="flex-shrink-0 bg-white/10 backdrop-blur-xl border border-white/20 rounded-lg p-3">
+                        <div className="space-y-1 overflow-y-auto max-h-24">
+                          {sceneAudioFiles
+                            .sort((a, b) => a.display_order - b.display_order)
+                            .map((audioFile, index) => (
+                              <AudioPlayer
+                                key={audioFile.id}
+                                audioUrl={audioFile.audio_url}
+                                title={audioFile.audio_title}
+                                characterName={audioFile.character?.character_name || 'Unknown'}
+                                avatarUrl={audioFile.character?.avatar_url}
+                                subtitles={audioFile.audio_description}
+                                autoPlay={index === 0 && currentPlayingAudio === 0}
+                                isCurrentlyPlaying={currentPlayingAudio === index}
+                                onPlay={() => setCurrentPlayingAudio(index)}
+                                onPause={() => setCurrentPlayingAudio(null)}
+                                onEnded={() => setCurrentPlayingAudio(null)}
+                                className="pill"
+                                isHidden={audioFile.hide_player || false}
+                              />
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 )}
 
                 {/* Right Column - Quiz and SBAR - Hidden for Scene 9 */}
                 {currentSceneNumber !== 9 && (
-                  <div className={`flex flex-col space-y-2 h-full min-h-0 overflow-hidden transition-all duration-700 ease-in-out ${
-                    currentSceneNumber === 4 ? 'lg:col-span-3' : 'lg:col-span-2'
-                  }`}>
+                  <div className={`flex flex-col space-y-2 h-full min-h-0 overflow-hidden transition-all duration-700 ease-in-out ${currentSceneNumber === 4 ? 'lg:col-span-3' : 'lg:col-span-2'
+                    }`}>
                     {/* Quiz Component */}
                     {sceneData.quiz && sceneData.quiz.questions && sceneData.quiz.questions.length > 0 && (
                       <div className="flex-1 min-h-0">
                         <QuizComponent
-                          questions={sceneData.quiz.questions}
-                          onQuizComplete={(responses) => {
+                          quiz={sceneData.quiz}
+                          onAnswered={(responses: Array<{ questionId: string; answer: string; isCorrect: boolean }>) => {
                             setSceneResponses(responses);
-                            setAllQuestionsSubmitted(responses.every(r => r.answer !== ''));
+                            setAllQuestionsSubmitted(responses.every((r: { answer: string }) => r.answer !== ''));
                           }}
-                          sceneId={sceneId}
-                          className="h-full"
+                          sceneId={sceneId || ''}
+                          onContinueToDiscussion={() => { }}
+                          onCompleteScene={() => { }}
+                          showDiscussion={false}
+                          isSceneCompleted={isCurrentSceneCompleted}
+                          sceneResponses={sceneResponses}
+                          allQuestionsSubmitted={allQuestionsSubmitted}
                         />
                       </div>
                     )}
@@ -451,16 +447,15 @@ const InstanceSimulationScene: React.FC = () => {
               <button
                 onClick={handlePreviousScene}
                 disabled={!canGoPrevious}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                  canGoPrevious
-                    ? 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
-                    : 'bg-gray-500/20 text-gray-400 cursor-not-allowed border border-gray-500/20'
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${canGoPrevious
+                  ? 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+                  : 'bg-gray-500/20 text-gray-400 cursor-not-allowed border border-gray-500/20'
+                  }`}
               >
                 <ChevronLeft className="w-4 h-4" />
                 Previous
               </button>
-              
+
               <div className="text-sm text-gray-300">
                 Time spent: {Math.floor((Date.now() - sceneStartTime) / 60000)}:{(Math.floor((Date.now() - sceneStartTime) / 1000) % 60).toString().padStart(2, '0')}
               </div>
@@ -474,15 +469,14 @@ const InstanceSimulationScene: React.FC = () => {
                 <CheckCircle className="w-4 h-4" />
                 Complete Scene
               </button>
-              
+
               <button
                 onClick={handleNextScene}
                 disabled={!canGoNext}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${
-                  canGoNext
-                    ? 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
-                    : 'bg-gray-500/20 text-gray-400 cursor-not-allowed border border-gray-500/20'
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all duration-200 ${canGoNext
+                  ? 'bg-white/10 hover:bg-white/20 text-white border border-white/20'
+                  : 'bg-gray-500/20 text-gray-400 cursor-not-allowed border border-gray-500/20'
+                  }`}
               >
                 Next
                 <ChevronRight className="w-4 h-4" />

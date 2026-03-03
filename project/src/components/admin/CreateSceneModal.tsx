@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { X, Plus, AlertCircle } from 'lucide-react';
 import { SceneData } from '../../data/scenesData';
+import VideoEmbedInput, { VideoEmbedValue } from './VideoEmbedInput';
 
 interface CreateSceneModalProps {
   onClose: () => void;
@@ -12,8 +13,14 @@ const CreateSceneModal: React.FC<CreateSceneModalProps> = ({ onClose, onSceneCre
   const [sceneId, setSceneId] = useState('');
   const [sceneTitle, setSceneTitle] = useState('');
   const [sceneDescription, setSceneDescription] = useState('');
-  const [videoUrl, setVideoUrl] = useState('');
-  const [posterUrl, setPosterUrl] = useState('');
+  const [videoEmbed, setVideoEmbed] = useState<VideoEmbedValue>({
+    sourceType: 'upload',
+    file: null,
+    streamUrl: '',
+    parsed: null,
+    title: '',
+    description: '',
+  });
   const [patientName, setPatientName] = useState('Patient Name');
   const [heartRate, setHeartRate] = useState(80);
   const [systolic, setSystolic] = useState(120);
@@ -87,13 +94,25 @@ const CreateSceneModal: React.FC<CreateSceneModalProps> = ({ onClose, onSceneCre
         return;
       }
 
+      // Determine video URL based on source type
+      let resolvedVideoUrl = '';
+      let resolvedPosterUrl = '';
+      if (videoEmbed.sourceType === 'stream' && videoEmbed.parsed) {
+        resolvedVideoUrl = videoEmbed.parsed.embedUrl;
+      } else if (videoEmbed.sourceType === 'upload' && videoEmbed.file) {
+        // File will be uploaded separately after scene creation
+        resolvedVideoUrl = ''; // Will be set after upload
+      }
+
       // Create the complete scene object
       const completeScene: SceneData = {
         id: sceneId,
         title: sceneTitle,
         description: sceneDescription,
-        videoUrl: videoUrl || '',
-        posterUrl: posterUrl || '',
+        videoUrl: resolvedVideoUrl,
+        posterUrl: resolvedPosterUrl,
+        videoSourceType: videoEmbed.sourceType === 'stream' ? 'stream' : 'upload',
+        streamUrl: videoEmbed.sourceType === 'stream' ? videoEmbed.streamUrl : undefined,
         vitals: {
           heartRate,
           systolic,
@@ -185,7 +204,7 @@ const CreateSceneModal: React.FC<CreateSceneModalProps> = ({ onClose, onSceneCre
                   />
                 </div>
               </div>
-              
+
               <div className="mt-4">
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Description <span className="text-red-500">*</span>
@@ -199,27 +218,16 @@ const CreateSceneModal: React.FC<CreateSceneModalProps> = ({ onClose, onSceneCre
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Video URL</label>
-                  <input
-                    type="url"
-                    value={videoUrl}
-                    onChange={(e) => setVideoUrl(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="https://example.com/video.mp4"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Poster URL</label>
-                  <input
-                    type="url"
-                    value={posterUrl}
-                    onChange={(e) => setPosterUrl(e.target.value)}
-                    className="w-full p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                    placeholder="https://example.com/poster.jpg"
-                  />
-                </div>
+              <div className="mt-4">
+                <label className="block text-sm font-medium text-gray-700 mb-3">
+                  Scene Video
+                </label>
+                <VideoEmbedInput
+                  value={videoEmbed}
+                  onChange={setVideoEmbed}
+                  sceneId={sceneId}
+                  compact
+                />
               </div>
             </div>
 

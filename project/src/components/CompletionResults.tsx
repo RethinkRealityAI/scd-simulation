@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+
 import { useSimulation } from '../context/SimulationContext';
-import { Trophy, Target, Clock, RefreshCw, Award, TrendingUp, CheckCircle, AlertCircle, Heart, Brain, MessageSquare, Shield, Share2 } from 'lucide-react';
+import { Trophy, Target, Clock, Award, TrendingUp, AlertCircle, Heart, Brain, MessageSquare, Shield } from 'lucide-react';
 
 const CompletionResults: React.FC = () => {
-  const navigate = useNavigate();
-  const { state, calculateScore, calculateCategoryScores, dispatch } = useSimulation();
+  const { state, calculateScore, calculateCategoryScores } = useSimulation();
   const [animationStep, setAnimationStep] = useState(0);
 
   const score = calculateScore();
-  const completionTime = state.userData.responses.length > 0 
-    ? Date.now() - state.userData.startTime 
+  const completionTime = state.userData.responses.length > 0
+    ? Date.now() - state.userData.startTime
     : 0;
 
   const formatTime = (ms: number) => {
@@ -26,32 +25,32 @@ const CompletionResults: React.FC = () => {
   };
 
   const getPerformanceLevel = (score: number) => {
-    if (score >= 90) return { 
-      level: 'Excellent', 
+    if (score >= 90) return {
+      level: 'Excellent',
       description: 'Outstanding understanding of sickle cell crisis management',
       icon: Award,
       color: 'text-green-400'
     };
-    if (score >= 80) return { 
-      level: 'Very Good', 
+    if (score >= 80) return {
+      level: 'Very Good',
       description: 'Strong grasp of key concepts and protocols',
       icon: Trophy,
       color: 'text-blue-400'
     };
-    if (score >= 70) return { 
-      level: 'Good', 
+    if (score >= 70) return {
+      level: 'Good',
       description: 'Solid foundation with room for improvement',
       icon: Target,
       color: 'text-cyan-400'
     };
-    if (score >= 60) return { 
-      level: 'Satisfactory', 
+    if (score >= 60) return {
+      level: 'Satisfactory',
       description: 'Basic understanding, additional training recommended',
       icon: TrendingUp,
       color: 'text-yellow-400'
     };
-    return { 
-      level: 'Needs Improvement', 
+    return {
+      level: 'Needs Improvement',
       description: 'Further education and practice strongly recommended',
       icon: AlertCircle,
       color: 'text-red-400'
@@ -108,11 +107,6 @@ const CompletionResults: React.FC = () => {
     }
   };
 
-  const handleRestart = () => {
-    dispatch({ type: 'RESET_SIMULATION' });
-    navigate('/welcome');
-  };
-
 
   // Animation sequence
   useEffect(() => {
@@ -123,9 +117,9 @@ const CompletionResults: React.FC = () => {
   }, [animationStep]);
 
   // Find strongest and weakest categories
-  const strongest = categoryScores.reduce((prev, current) => 
+  const strongest = categoryScores.reduce((prev, current) =>
     (current.percentage > prev.percentage) ? current : prev, categoryScores[0]);
-  const weakest = categoryScores.reduce((prev, current) => 
+  const weakest = categoryScores.reduce((prev, current) =>
     (current.percentage < prev.percentage) ? current : prev, categoryScores[0]);
 
   return (
@@ -181,7 +175,7 @@ const CompletionResults: React.FC = () => {
                       <CategoryIcon className={`w-3 h-3 ${config.color}`} />
                       <h4 className="text-white font-semibold text-xs">{config.label}</h4>
                     </div>
-                    
+
                     <div className="flex items-center justify-between mb-1">
                       <span className={`text-sm font-bold ${getScoreColor(categoryScore.percentage)}`}>
                         {categoryScore.percentage}%
@@ -190,9 +184,9 @@ const CompletionResults: React.FC = () => {
                         {categoryScore.correct}/{categoryScore.total}
                       </span>
                     </div>
-                    
+
                     <div className="w-full h-1 rounded-full bg-slate-700 overflow-hidden">
-                      <div 
+                      <div
                         className={`h-full transition-all duration-1000 ${getScoreColor(categoryScore.percentage).replace('text-', 'bg-')}`}
                         style={{ width: `${categoryScore.percentage}%` }}
                       />
@@ -231,7 +225,7 @@ const CompletionResults: React.FC = () => {
                   </p>
                 </div>
               )}
-              
+
               {weakest && weakest.total > 0 && weakest.percentage < 80 && (
                 <div className="p-2 rounded-lg bg-amber-500/10 border border-amber-400/20">
                   <div className="flex items-center gap-2 mb-1">

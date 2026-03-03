@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useReducer, useEffect } from 'react';
+import React, { createContext, useContext, useReducer } from 'react';
 import { ScoringCategory, scenes } from '../data/scenesData';
 import { supabase } from '../lib/supabase';
 
@@ -20,6 +20,8 @@ export interface CategoryScore {
 
 export interface UserData {
   id: string; // Changed from userId to id to match schema requirements
+  name: string;
+  userType: 'student' | 'professional';
   educationLevel: string;
   organization: string;
   school: string;
@@ -42,7 +44,7 @@ interface SimulationState {
 }
 
 type SimulationAction =
-  | { type: 'INITIALIZE_USER'; payload: { educationLevel: string; organization: string; school: string; year: string; program: string; field: string; howHeard: string } }
+  | { type: 'INITIALIZE_USER'; payload: { name: string; userType: 'student' | 'professional'; educationLevel: string; organization: string; school: string; year: string; program: string; field: string; howHeard: string } }
   | { type: 'ADD_RESPONSE'; payload: UserResponse }
   | { type: 'SET_CURRENT_SCENE'; payload: number }
   | { type: 'COMPLETE_SCENE'; payload: number }
@@ -54,6 +56,8 @@ type SimulationAction =
 const initialState: SimulationState = {
   userData: {
     id: '',
+    name: '',
+    userType: 'student',
     educationLevel: '',
     organization: '',
     school: '',
@@ -82,6 +86,8 @@ function simulationReducer(state: SimulationState, action: SimulationAction): Si
         userData: {
           ...state.userData,
           id,
+          name: action.payload.name,
+          userType: action.payload.userType,
           educationLevel: action.payload.educationLevel,
           organization: action.payload.organization,
           school: action.payload.school,
@@ -187,15 +193,17 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
   const sendDataToWebhook = async (): Promise<void> => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
-      
+
       const completionTime = Date.now() - state.userData.startTime;
       const score = calculateScore();
       const categoryScores = calculateCategoryScoresFunc();
-      
+
       // Ensure all required data points are included for webhook transmission
       const payload = {
         id: state.userData.id, // Using ID instead of userId
         demographics: {
+          name: state.userData.name,
+          userType: state.userData.userType,
           educationLevel: state.userData.educationLevel,
           organization: state.userData.organization,
           school: state.userData.school,
@@ -245,9 +253,9 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
           completion_time: payload.sessionData.completionTime,
           completed_scenes: payload.sessionData.completedScenes
         };
-        
+
         console.log('Attempting to save to session_data table:', dbPayload);
-        
+
         const { error: dbError } = await supabase
           .from('session_data')
           .insert(dbPayload);
@@ -287,12 +295,12 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
   };
 
   return (
-    <SimulationContext.Provider value={{ 
-      state, 
-      dispatch, 
-      calculateScore, 
-      calculateCategoryScores: calculateCategoryScoresFunc, 
-      sendDataToWebhook 
+    <SimulationContext.Provider value={{
+      state,
+      dispatch,
+      calculateScore,
+      calculateCategoryScores: calculateCategoryScoresFunc,
+      sendDataToWebhook
     }}>
       {children}
     </SimulationContext.Provider>

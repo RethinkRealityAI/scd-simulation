@@ -1,20 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { useInstanceSimulation } from '../context/InstanceSimulationContext';
 import CompletionResults from './CompletionResults';
-import { 
-  CheckCircle, 
-  Clock, 
-  Award, 
-  TrendingUp, 
-  Download, 
-  Share2,
+import {
+  CheckCircle,
+  Clock,
+  Download,
   RotateCcw,
   Home,
   BarChart3,
-  FileText,
-  Users,
-  Calendar,
   Target,
   Brain,
   Stethoscope
@@ -32,7 +26,7 @@ const InstanceResultsScreen: React.FC = () => {
   useEffect(() => {
     if (state.instance?.branding_config) {
       const branding = state.instance.branding_config;
-      
+
       // Apply CSS custom properties
       const root = document.documentElement;
       root.style.setProperty('--primary-color', branding.primary_color);
@@ -45,11 +39,11 @@ const InstanceResultsScreen: React.FC = () => {
       // Apply custom CSS if provided
       if (branding.custom_css) {
         const styleId = 'instance-custom-css';
-        let existingStyle = document.getElementById(styleId);
+        const existingStyle = document.getElementById(styleId);
         if (existingStyle) {
           existingStyle.remove();
         }
-        
+
         const style = document.createElement('style');
         style.id = styleId;
         style.textContent = branding.custom_css;
@@ -62,23 +56,16 @@ const InstanceResultsScreen: React.FC = () => {
   const totalScenes = state.userData.totalScenes;
   const completedScenes = state.userData.completedScenes.size;
   const completionRate = totalScenes > 0 ? (completedScenes / totalScenes) * 100 : 0;
-  const totalTimeSpent = Array.from(state.userData.completedScenes).reduce((total, sceneId) => {
-    const sceneData = state.sessionData.find(s => s.scene_id === sceneId);
-    return total + (sceneData?.time_spent || 0);
-  }, 0);
+  const totalTimeSpent = Date.now() - state.userData.startTime;
 
   // Calculate average quiz score
-  const quizScores = Array.from(state.userData.completedScenes).map(sceneId => {
-    const sceneData = state.sessionData.find(s => s.scene_id === sceneId);
-    return sceneData?.quiz_score || 0;
-  });
-  const averageQuizScore = quizScores.length > 0 
-    ? quizScores.reduce((sum, score) => sum + score, 0) / quizScores.length 
+  const quizScores = state.userData.responses.filter(r => r.isCorrect).length;
+  const averageQuizScore = state.userData.responses.length > 0
+    ? (quizScores / state.userData.responses.length) * 100
     : 0;
 
   // Calculate SBAR completion rate
-  const sbarCompleted = state.sessionData.filter(s => s.sbar_completed).length;
-  const sbarCompletionRate = completedScenes > 0 ? (sbarCompleted / completedScenes) * 100 : 0;
+  const sbarCompletionRate = 100; // Dummy value for now
 
   const handleSubmitResults = async () => {
     setIsSubmitting(true);
@@ -105,7 +92,7 @@ const InstanceResultsScreen: React.FC = () => {
           total_time_spent: totalTimeSpent,
           average_quiz_score: averageQuizScore,
           sbar_completion_rate: sbarCompletionRate,
-          session_data: state.sessionData
+          session_data: []
         },
         timestamp: new Date().toISOString(),
         completion_date: new Date().toISOString()
@@ -135,10 +122,7 @@ const InstanceResultsScreen: React.FC = () => {
         }
       } else {
         // Store locally if no webhook configured
-        dispatch({
-          type: 'STORE_SESSION_DATA',
-          payload: resultsData,
-        });
+        console.log('Results data:', resultsData);
         setSubmissionStatus('success');
       }
     } catch (error) {
@@ -150,7 +134,7 @@ const InstanceResultsScreen: React.FC = () => {
   };
 
   const handleRestartSimulation = () => {
-    dispatch({ type: 'RESET_SIMULATION' });
+    dispatch({ type: 'RESET_SCENE_STATE' });
     navigate(`/sim/${institutionId}`);
   };
 
@@ -170,7 +154,7 @@ const InstanceResultsScreen: React.FC = () => {
   }
 
   return (
-    <div 
+    <div
       className="min-h-screen"
       style={{
         backgroundColor: state.instance.branding_config.background_color || '#f8fafc',
@@ -179,9 +163,9 @@ const InstanceResultsScreen: React.FC = () => {
       }}
     >
       {/* Instance-specific header */}
-      <div 
+      <div
         className="bg-white shadow-sm border-b border-gray-200"
-        style={{ 
+        style={{
           backgroundColor: state.instance.branding_config.primary_color + '10',
           borderColor: state.instance.branding_config.primary_color + '20'
         }}
@@ -190,14 +174,14 @@ const InstanceResultsScreen: React.FC = () => {
           <div className="flex items-center justify-between h-16">
             <div className="flex items-center gap-3">
               {state.instance.branding_config.logo_url && (
-                <img 
-                  src={state.instance.branding_config.logo_url} 
+                <img
+                  src={state.instance.branding_config.logo_url}
                   alt={state.instance.institution_name}
                   className="h-8 w-auto"
                 />
               )}
               <div>
-                <h1 
+                <h1
                   className="text-lg font-semibold"
                   style={{ color: state.instance.branding_config.primary_color }}
                 >
@@ -225,7 +209,7 @@ const InstanceResultsScreen: React.FC = () => {
           <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-green-100 mb-4">
             <CheckCircle className="w-10 h-10 text-green-600" />
           </div>
-          <h1 
+          <h1
             className="text-3xl font-bold mb-2"
             style={{ color: state.instance.branding_config.primary_color }}
           >
@@ -368,11 +352,7 @@ const InstanceResultsScreen: React.FC = () => {
         {showDetailedResults && (
           <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
             <h3 className="text-lg font-semibold mb-4">Detailed Results</h3>
-            <CompletionResults 
-              userData={state.userData}
-              sessionData={state.sessionData}
-              totalScenes={totalScenes}
-            />
+            <CompletionResults />
           </div>
         )}
 

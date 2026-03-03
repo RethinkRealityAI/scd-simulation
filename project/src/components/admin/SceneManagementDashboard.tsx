@@ -1,16 +1,15 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  GripVertical, 
-  Eye, 
-  Edit, 
-  Trash2, 
-  CheckCircle, 
+import {
+  Plus,
+  GripVertical,
+  Eye,
+  Edit,
+  Trash2,
+  CheckCircle,
   Star,
   ArrowUp,
   ArrowDown,
   Settings,
-  Play,
   Save,
   RefreshCw,
   Copy,
@@ -26,23 +25,23 @@ import ScenePreview from '../ScenePreview';
 
 interface SceneManagementDashboardProps {
   onClose?: () => void;
+  instanceId?: string;
 }
 
-const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onClose }) => {
-  const { allScenes, loading: scenesLoading } = useAllSceneConfigs();
+const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onClose, instanceId }) => {
+  const { allScenes, loading: scenesLoading } = useAllSceneConfigs(instanceId);
   const { saveSceneConfiguration, deleteSceneConfiguration } = useSceneData();
-  const { 
-    sceneOrder, 
-    loading: orderLoading, 
-    updateSceneOrder, 
-    setCompletionScene, 
-    addSceneToOrder, 
+  const {
+    sceneOrder,
+    loading: orderLoading,
+    setCompletionScene,
+    addSceneToOrder,
     removeSceneFromOrder,
     reorderScenes,
     getOrderedScenes,
     canAddMoreScenes
-  } = useSceneOrdering();
-  
+  } = useSceneOrdering(instanceId);
+
   const [scenes, setScenes] = useState<SceneData[]>([]);
   const [selectedScene, setSelectedScene] = useState<SceneData | null>(null);
   const [showEditor, setShowEditor] = useState(false);
@@ -70,12 +69,12 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
   const handleSceneCreated = async (newScene: SceneData) => {
     try {
       // Save the scene configuration to the database
-      const success = await saveSceneConfiguration(newScene);
+      const success = await saveSceneConfiguration(newScene, instanceId);
       if (success) {
         // Add to local state
         setScenes(prev => [...prev, newScene]);
         // Add to scene order
-        await addSceneToOrder(parseInt(newScene.id));
+        await addSceneToOrder(parseInt(newScene.id), instanceId);
         alert('Scene created successfully!');
       } else {
         alert('Failed to create scene. Please try again.');
@@ -98,10 +97,10 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
 
   const handleDeleteScene = async (sceneId: number) => {
     if (window.confirm('Are you sure you want to delete this scene? This action cannot be undone.')) {
-      const success = await deleteSceneConfiguration(sceneId);
+      const success = await deleteSceneConfiguration(sceneId, instanceId);
       if (success) {
         setScenes(prev => prev.filter(s => parseInt(s.id) !== sceneId));
-        removeSceneFromOrder(sceneId);
+        removeSceneFromOrder(sceneId, instanceId);
       }
     }
   };
@@ -113,7 +112,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
     }
 
     setDuplicating(parseInt(scene.id));
-    
+
     try {
       // Find the next available scene ID
       const existingIds = scenes.map(s => parseInt(s.id));
@@ -136,10 +135,10 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
       };
 
       // Save the duplicated scene
-      const success = await saveSceneConfiguration(duplicatedScene);
+      const success = await saveSceneConfiguration(duplicatedScene, instanceId);
       if (success) {
         setScenes(prev => [...prev, duplicatedScene]);
-        await addSceneToOrder(newId);
+        await addSceneToOrder(newId, instanceId);
         alert(`Scene duplicated successfully as Scene ${newId}!`);
       } else {
         alert('Failed to duplicate scene. Please try again.');
@@ -164,66 +163,66 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
 
   const handleDrop = async (e: React.DragEvent, targetSceneId: number) => {
     e.preventDefault();
-    
+
     if (!draggedScene || draggedScene === targetSceneId) return;
 
     const orderedScenes = getOrderedScenes();
     const draggedIndex = orderedScenes.findIndex(s => s.scene_id === draggedScene);
     const targetIndex = orderedScenes.findIndex(s => s.scene_id === targetSceneId);
-    
+
     if (draggedIndex === -1 || targetIndex === -1) return;
 
     // Create new order array
     const newOrder = [...orderedScenes];
     const draggedItem = newOrder[draggedIndex];
-    
+
     // Remove dragged item
     newOrder.splice(draggedIndex, 1);
-    
+
     // Insert at new position
     const newTargetIndex = targetIndex > draggedIndex ? targetIndex - 1 : targetIndex;
     newOrder.splice(newTargetIndex, 0, draggedItem);
-    
+
     // Update display orders
     const reorderedItems = newOrder.map((item, index) => ({
       ...item,
       display_order: index + 1
     }));
-    
-    await reorderScenes(reorderedItems);
+
+    await reorderScenes(reorderedItems, instanceId);
     setDraggedScene(null);
   };
 
   const handleSetCompletionScene = async (sceneId: number) => {
-    await setCompletionScene(sceneId);
+    await setCompletionScene(sceneId, instanceId);
   };
 
   const handleMoveScene = async (sceneId: number, direction: 'up' | 'down') => {
     const orderedScenes = getOrderedScenes();
     const currentIndex = orderedScenes.findIndex(s => s.scene_id === sceneId);
-    
+
     if (
       (direction === 'up' && currentIndex > 0) ||
       (direction === 'down' && currentIndex < orderedScenes.length - 1)
     ) {
       const targetIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
-      
+
       // Create new order array
       const newOrder = [...orderedScenes];
       const currentItem = newOrder[currentIndex];
       const targetItem = newOrder[targetIndex];
-      
+
       // Swap items
       newOrder[currentIndex] = targetItem;
       newOrder[targetIndex] = currentItem;
-      
+
       // Update display orders
       const reorderedItems = newOrder.map((item, index) => ({
         ...item,
         display_order: index + 1
       }));
-      
-      await reorderScenes(reorderedItems);
+
+      await reorderScenes(reorderedItems, instanceId);
     }
   };
 
@@ -309,7 +308,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
               </div>
             </div>
           </div>
-          
+
           <div className="bg-green-50 p-4 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
@@ -321,7 +320,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
               </div>
             </div>
           </div>
-          
+
           <div className="bg-purple-50 p-4 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
@@ -335,7 +334,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
               </div>
             </div>
           </div>
-          
+
           <div className="bg-orange-50 p-4 rounded-lg">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-orange-100 rounded-lg flex items-center justify-center">
@@ -350,10 +349,10 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
         </div>
 
         <div className="space-y-4">
-        {sortedScenes.map((scene, index) => {
-          const orderItem = sceneOrder.find(s => s.scene_id === parseInt(scene.id));
-          const isCompletionScene = orderItem?.is_completion_scene || false;
-            
+          {sortedScenes.map((scene, index) => {
+            const orderItem = sceneOrder.find(s => s.scene_id === parseInt(scene.id));
+            const isCompletionScene = orderItem?.is_completion_scene || false;
+
             return (
               <div
                 key={scene.id}
@@ -361,9 +360,8 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                 onDragStart={(e) => handleDragStart(e, parseInt(scene.id))}
                 onDragOver={handleDragOver}
                 onDrop={(e) => handleDrop(e, parseInt(scene.id))}
-                className={`bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-gray-200 rounded-xl p-4 transition-all hover:shadow-lg ${
-                  draggedScene === parseInt(scene.id) ? 'opacity-50' : ''
-                } ${isCompletionScene ? 'ring-2 ring-green-400 bg-green-50' : ''}`}
+                className={`bg-gradient-to-r from-gray-50 to-gray-100 border-2 border-gray-200 rounded-xl p-4 transition-all hover:shadow-lg ${draggedScene === parseInt(scene.id) ? 'opacity-50' : ''
+                  } ${isCompletionScene ? 'ring-2 ring-green-400 bg-green-50' : ''}`}
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-4 flex-1">
@@ -371,7 +369,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                     <div className="cursor-move text-gray-400 hover:text-gray-600">
                       <GripVertical className="w-5 h-5" />
                     </div>
-                    
+
                     {/* Scene Info */}
                     <div className="flex-1">
                       <div className="flex items-center gap-3 mb-2">
@@ -389,7 +387,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                       <p className="text-gray-600 text-sm mt-1">{scene.description}</p>
                     </div>
                   </div>
-                  
+
                   {/* Actions */}
                   <div className="flex items-center gap-2">
                     {/* Move Up/Down */}
@@ -407,20 +405,19 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                     >
                       <ArrowDown className="w-4 h-4" />
                     </button>
-                    
+
                     {/* Set as Completion Scene */}
                     <button
                       onClick={() => handleSetCompletionScene(parseInt(scene.id))}
-                      className={`p-2 rounded-lg transition-colors ${
-                        isCompletionScene 
-                          ? 'bg-green-100 text-green-600' 
-                          : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
-                      }`}
+                      className={`p-2 rounded-lg transition-colors ${isCompletionScene
+                        ? 'bg-green-100 text-green-600'
+                        : 'text-gray-400 hover:text-green-600 hover:bg-green-50'
+                        }`}
                       title="Set as completion scene"
                     >
                       <Star className="w-4 h-4" />
                     </button>
-                    
+
                     {/* Preview */}
                     <button
                       onClick={() => handlePreviewScene(scene)}
@@ -429,7 +426,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                     >
                       <Eye className="w-4 h-4" />
                     </button>
-                    
+
                     {/* Edit */}
                     <button
                       onClick={() => handleEditScene(scene)}
@@ -438,7 +435,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                     >
                       <Edit className="w-4 h-4" />
                     </button>
-                    
+
                     {/* Duplicate */}
                     <button
                       onClick={() => handleDuplicateScene(scene)}
@@ -452,7 +449,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
                         <Copy className="w-4 h-4" />
                       )}
                     </button>
-                    
+
                     {/* Delete */}
                     <button
                       onClick={() => handleDeleteScene(parseInt(scene.id))}
@@ -467,7 +464,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
             );
           })}
         </div>
-        
+
         {/* Empty State */}
         {sortedScenes.length === 0 && (
           <div className="text-center py-12">
@@ -494,12 +491,13 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
           onSceneCreated={handleSceneCreated}
         />
       )}
-      
+
       {showEditor && selectedScene && (
         <SceneEditorModal
           scene={selectedScene}
+          instanceId={instanceId}
           onSave={async (updatedScene) => {
-            const success = await saveSceneConfiguration(updatedScene);
+            const success = await saveSceneConfiguration(updatedScene, instanceId);
             if (success) {
               setScenes(prev => prev.map(s => s.id === updatedScene.id ? updatedScene : s));
             }
@@ -511,7 +509,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
           }}
         />
       )}
-      
+
       {showPreview && selectedScene && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">

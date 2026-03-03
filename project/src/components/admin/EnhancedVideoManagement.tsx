@@ -14,24 +14,25 @@ interface VideoData {
 
 interface EnhancedVideoManagementProps {
   onMessage?: (message: { type: 'success' | 'error'; text: string }) => void;
+  instanceId?: string;
 }
 
-const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMessage }) => {
-  const { videos, loading, uploadVideo, updateVideo, deleteVideo } = useVideoData();
-  
+const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMessage, instanceId }) => {
+  const { videos, loading, uploadVideo, updateVideo, deleteVideo } = useVideoData(instanceId);
+
   const [uploading, setUploading] = useState(false);
   const [selectedScene, setSelectedScene] = useState(1);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  
+
   const [editingVideo, setEditingVideo] = useState<VideoData | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editDescription, setEditDescription] = useState('');
   const [editVideoFile, setEditVideoFile] = useState<File | null>(null);
   const [editPosterFile, setEditPosterFile] = useState<File | null>(null);
-  
+
   const [selectedVideoForPreview, setSelectedVideoForPreview] = useState<VideoData | null>(null);
 
   // Update preview when selected scene changes or videos change
@@ -66,12 +67,12 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
       onMessage?.({ type: 'error', text: 'Please fill in all fields (title, description, and select a video file)' });
       return;
     }
-    
+
     setUploading(true);
     try {
-      await uploadVideo(file, selectedScene, title, description);
+      await uploadVideo(file, selectedScene, title, description, instanceId);
       onMessage?.({ type: 'success', text: `Video uploaded successfully for Scene ${selectedScene}!` });
-      
+
       // Reset form
       setTitle('');
       setDescription('');
@@ -100,12 +101,12 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
   const handleUpdateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingVideo) return;
-    
+
     setUploading(true);
     try {
-      await updateVideo(editingVideo.id, editTitle, editDescription, editVideoFile || undefined, editPosterFile || undefined);
+      await updateVideo(editingVideo.id, editTitle, editDescription, editVideoFile || undefined, editPosterFile || undefined, instanceId);
       onMessage?.({ type: 'success', text: 'Video updated successfully!' });
-      
+
       // Reset
       setEditingVideo(null);
       setEditTitle('');
@@ -121,9 +122,9 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
 
   const handleDeleteVideo = async (sceneId: number) => {
     if (!confirm('Delete this video?')) return;
-    
+
     try {
-      await deleteVideo(sceneId);
+      await deleteVideo(sceneId, instanceId);
       onMessage?.({ type: 'success', text: 'Video deleted!' });
     } catch (error) {
       onMessage?.({ type: 'error', text: 'Failed to delete video' });
@@ -137,7 +138,6 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
   }));
 
   // Calculate statistics
-  const totalVideos = videos.length;
   const scenesWithVideos = new Set(videos.map(v => v.scene_id)).size;
   const totalScenes = 10;
 
@@ -158,13 +158,12 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
               <button
                 key={opt.value}
                 onClick={() => setSelectedScene(opt.value)}
-                className={`aspect-square rounded-lg text-xs font-semibold transition-all duration-200 ${
-                  selectedScene === opt.value
-                    ? 'bg-blue-600 text-white shadow-md scale-105'
-                    : opt.hasVideo
+                className={`aspect-square rounded-lg text-xs font-semibold transition-all duration-200 ${selectedScene === opt.value
+                  ? 'bg-blue-600 text-white shadow-md scale-105'
+                  : opt.hasVideo
                     ? 'bg-green-100 text-green-700 hover:bg-green-200 border border-green-300'
                     : 'bg-white text-gray-600 hover:bg-gray-100 border border-gray-200'
-                }`}
+                  }`}
                 title={`Scene ${opt.value}${opt.hasVideo ? ' (has video)' : ' (no video)'}`}
               >
                 {opt.value}
@@ -190,85 +189,85 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
             </div>
           </div>
           <form onSubmit={handleUploadSubmit} className="p-5 space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">
-                    Scene
-                    <span className="ml-2 text-xs text-gray-500 font-normal">(✓ = has video)</span>
-                  </label>
-                  <select
-                    value={selectedScene}
-                    onChange={(e) => {
-                      setSelectedScene(Number(e.target.value));
-                      // Clear file when changing scenes
-                      setFile(null);
-                      const fileInput = document.getElementById('video-file-input') as HTMLInputElement;
-                      if (fileInput) fileInput.value = '';
-                    }}
-                    className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-medium bg-white hover:border-blue-400 transition-colors"
-                  >
-                    {sceneOptions.map(opt => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label} {opt.hasVideo ? '✓' : '○'}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-2">Video File</label>
-                  <input
-                    id="video-file-input"
-                    type="file"
-                    accept="video/*"
-                    onChange={(e) => setFile(e.target.files?.[0] || null)}
-                    className="w-full text-sm p-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
-                    required
-                  />
-                </div>
-              </div>
-              
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Title</label>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Scene
+                  <span className="ml-2 text-xs text-gray-500 font-normal">(✓ = has video)</span>
+                </label>
+                <select
+                  value={selectedScene}
+                  onChange={(e) => {
+                    setSelectedScene(Number(e.target.value));
+                    // Clear file when changing scenes
+                    setFile(null);
+                    const fileInput = document.getElementById('video-file-input') as HTMLInputElement;
+                    if (fileInput) fileInput.value = '';
+                  }}
+                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm font-medium bg-white hover:border-blue-400 transition-colors"
+                >
+                  {sceneOptions.map(opt => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label} {opt.hasVideo ? '✓' : '○'}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Video File</label>
                 <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
-                  placeholder="Enter video title..."
+                  id="video-file-input"
+                  type="file"
+                  accept="video/*"
+                  onChange={(e) => setFile(e.target.files?.[0] || null)}
+                  className="w-full text-sm p-2.5 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 file:mr-3 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer"
                   required
                 />
               </div>
-              
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
-                <textarea
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  rows={3}
-                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
-                  placeholder="Enter video description..."
-                  required
-                />
-              </div>
-              
-              <button
-                type="submit"
-                disabled={uploading || !file}
-                className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold text-sm transition-all shadow-md hover:shadow-lg"
-              >
-                {uploading ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    Uploading...
-                  </>
-                ) : (
-                  <>
-                    <Upload className="w-5 h-5" />
-                    Upload Video
-                  </>
-                )}
-              </button>
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Title</label>
+              <input
+                type="text"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                placeholder="Enter video title..."
+                required
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-semibold text-gray-700 mb-2">Description</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                rows={3}
+                className="w-full p-3 border-2 border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm resize-none"
+                placeholder="Enter video description..."
+                required
+              />
+            </div>
+
+            <button
+              type="submit"
+              disabled={uploading || !file}
+              className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white py-3 rounded-lg hover:from-blue-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 font-semibold text-sm transition-all shadow-md hover:shadow-lg"
+            >
+              {uploading ? (
+                <>
+                  <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Upload className="w-5 h-5" />
+                  Upload Video
+                </>
+              )}
+            </button>
           </form>
         </div>
 
@@ -300,11 +299,10 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
                   <div
                     key={video.id}
                     onClick={() => setSelectedVideoForPreview(video)}
-                    className={`border-2 rounded-xl p-4 cursor-pointer transition-all hover:scale-[1.02] ${
-                      selectedVideoForPreview?.id === video.id
-                        ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200'
-                        : 'border-gray-200 hover:border-blue-300 hover:shadow-md bg-white'
-                    }`}
+                    className={`border-2 rounded-xl p-4 cursor-pointer transition-all hover:scale-[1.02] ${selectedVideoForPreview?.id === video.id
+                      ? 'border-blue-500 bg-blue-50 shadow-lg ring-2 ring-blue-200'
+                      : 'border-gray-200 hover:border-blue-300 hover:shadow-md bg-white'
+                      }`}
                   >
                     <div className="flex items-start justify-between mb-3">
                       <span className="text-xs font-bold text-blue-700 bg-blue-100 px-3 py-1 rounded-full">
@@ -361,7 +359,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
             )}
           </h2>
         </div>
-        
+
         {/* Show new file preview if available, otherwise show existing video */}
         {previewUrl || selectedVideoForPreview ? (
           <div className="flex-1 flex flex-col p-5 overflow-y-auto">
@@ -404,7 +402,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
                 Your browser does not support the video tag.
               </video>
             </div>
-            
+
             {/* Video Information */}
             <div className="space-y-3">
               <div>
@@ -412,7 +410,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
                   Scene {selectedScene}
                 </span>
               </div>
-              
+
               {previewUrl ? (
                 <div>
                   <h3 className="font-bold text-lg text-gray-900 mb-1">{title || 'Untitled Video'}</h3>
@@ -455,7 +453,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
               </div>
               <h3 className="text-xl font-bold text-gray-900 mb-3">No Video Selected</h3>
               <p className="text-sm text-gray-600 mb-6 leading-relaxed">
-                {videos.length > 0 
+                {videos.length > 0
                   ? 'Click on any video from the list on the left to preview it here, or select a new file to upload.'
                   : 'Upload your first video to get started! Videos will appear in the list and can be previewed here.'}
               </p>
@@ -495,7 +493,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
                 <X className="w-5 h-5" />
               </button>
             </div>
-            
+
             <form onSubmit={handleUpdateSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Title</label>
@@ -507,7 +505,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
                   required
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
                 <textarea
@@ -518,7 +516,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
                   required
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Replace Video (Optional)</label>
                 <input
@@ -528,7 +526,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
                   className="w-full p-2 border border-gray-300 rounded-lg text-sm file:mr-3 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">Poster Image (Optional)</label>
                 <input
@@ -538,7 +536,7 @@ const EnhancedVideoManagement: React.FC<EnhancedVideoManagementProps> = ({ onMes
                   className="w-full p-2 border border-gray-300 rounded-lg text-sm file:mr-3 file:py-2 file:px-4 file:rounded file:border-0 file:bg-blue-50 file:text-blue-700"
                 />
               </div>
-              
+
               <div className="flex gap-3 pt-2">
                 <button
                   type="button"

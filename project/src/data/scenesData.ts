@@ -3,6 +3,70 @@ import { ActionPrompt } from '../components/QuizComponent';
 
 export type ScoringCategory = 'timelyPainManagement' | 'clinicalJudgment' | 'communication' | 'culturalSafety' | 'biasMitigation';
 
+export interface VitalsVisibility {
+  heartRate: boolean;
+  bloodPressure: boolean;
+  respiratoryRate: boolean;
+  oxygenSaturation: boolean;
+  temperature: boolean;
+  painLevel: boolean;
+  patientInfo: boolean;
+}
+
+export interface VitalsDisplayConfig {
+  visibility: VitalsVisibility;
+  colors?: {
+    heartRate?: string;
+    bloodPressure?: string;
+    respiratoryRate?: string;
+    oxygenSaturation?: string;
+    temperature?: string;
+    painLevel?: string;
+  };
+  alertThresholds?: {
+    heartRateHigh?: number;
+    heartRateLow?: number;
+    systolicHigh?: number;
+    diastolicHigh?: number;
+    respiratoryRateHigh?: number;
+    oxygenSaturationLow?: number;
+    temperatureHigh?: number;
+    painLevelHigh?: number;
+  };
+}
+
+export const defaultVitalsVisibility: VitalsVisibility = {
+  heartRate: true,
+  bloodPressure: true,
+  respiratoryRate: true,
+  oxygenSaturation: true,
+  temperature: true,
+  painLevel: true,
+  patientInfo: true,
+};
+
+export const defaultVitalsDisplayConfig: VitalsDisplayConfig = {
+  visibility: { ...defaultVitalsVisibility },
+  colors: {
+    heartRate: 'cyan',
+    bloodPressure: 'cyan',
+    respiratoryRate: 'cyan',
+    oxygenSaturation: 'green',
+    temperature: 'yellow',
+    painLevel: 'red',
+  },
+  alertThresholds: {
+    heartRateHigh: 120,
+    heartRateLow: 50,
+    systolicHigh: 140,
+    diastolicHigh: 90,
+    respiratoryRateHigh: 24,
+    oxygenSaturationLow: 94,
+    temperatureHigh: 37.2,
+    painLevelHigh: 7,
+  },
+};
+
 export interface SceneData {
   id: string;
   title: string;
@@ -11,8 +75,11 @@ export interface SceneData {
   posterUrl?: string;
   audioNarration?: string;
   iframeUrl?: string;
+  videoSourceType?: 'upload' | 'stream';
+  streamUrl?: string;
   clinicalFindings?: string[];
   scoringCategories?: ScoringCategory[]; // Categories this scene contributes to
+  vitalsDisplayConfig?: VitalsDisplayConfig;
   vitals: {
     heartRate: number;
     systolic: number;
@@ -20,6 +87,7 @@ export interface SceneData {
     respiratoryRate: number;
     oxygenSaturation: number;
     temperature: number;
+    painLevel?: number;
     isAlarmOn: boolean;
     patientName: string;
     age: number;
@@ -32,6 +100,7 @@ export interface SceneData {
   };
   actionPrompt?: ActionPrompt;
   discussionPrompts?: string[];
+  isCompletionScene?: boolean;
 }
 
 export const scenes: SceneData[] = [

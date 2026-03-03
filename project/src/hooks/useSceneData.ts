@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { SceneData } from '../data/scenesData';
 
@@ -23,23 +23,27 @@ export const useSceneData = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchSceneConfigurations();
-  }, []);
-
-  const fetchSceneConfigurations = async () => {
+  const fetchSceneConfigurations = async (instanceId?: string) => {
     try {
       setLoading(true);
       setError(null);
-      
-      const { data, error } = await supabase
+
+      let query = supabase
         .from('scene_configurations')
         .select('*')
         .eq('is_active', true)
         .order('scene_id');
 
+      if (instanceId) {
+        query = query.eq('instance_id', instanceId);
+      } else {
+        query = query.is('instance_id', null);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
-      
+
       setSceneConfigurations(data || []);
     } catch (err) {
       console.error('Error fetching scene configurations:', err);
@@ -49,15 +53,17 @@ export const useSceneData = () => {
     }
   };
 
-  const saveSceneConfiguration = async (sceneData: SceneData): Promise<boolean> => {
+  const saveSceneConfiguration = async (sceneData: SceneData, instanceId?: string): Promise<boolean> => {
     try {
       setError(null);
-      
+
       const configurationData = {
+        instance_id: instanceId || null,
         scene_id: parseInt(sceneData.id),
         title: sceneData.title,
         description: sceneData.description,
         vitals_config: sceneData.vitals,
+        vitals_display_config: sceneData.vitalsDisplayConfig || null,
         quiz_questions: sceneData.quiz,
         action_prompts: sceneData.actionPrompt,
         discussion_prompts: sceneData.discussionPrompts,
@@ -76,12 +82,13 @@ export const useSceneData = () => {
       if (insertError) {
         // If insert fails due to unique constraint, try update
         if (insertError.code === '23505') {
-          const { data: updateData, error: updateError } = await supabase
+          let updateQuery = supabase
             .from('scene_configurations')
             .update({
               title: configurationData.title,
               description: configurationData.description,
               vitals_config: configurationData.vitals_config,
+              vitals_display_config: configurationData.vitals_display_config,
               quiz_questions: configurationData.quiz_questions,
               action_prompts: configurationData.action_prompts,
               discussion_prompts: configurationData.discussion_prompts,
@@ -89,16 +96,22 @@ export const useSceneData = () => {
               scoring_categories: configurationData.scoring_categories,
               updated_at: new Date().toISOString()
             })
-            .eq('scene_id', configurationData.scene_id)
-            .select()
-            .single();
+            .eq('scene_id', configurationData.scene_id);
+
+          if (instanceId) {
+            updateQuery = updateQuery.eq('instance_id', instanceId);
+          } else {
+            updateQuery = updateQuery.is('instance_id', null);
+          }
+
+          const { data: updateData, error: updateError } = await updateQuery.select().single();
 
           if (updateError) throw updateError;
-          
+
           // Update local state
-          setSceneConfigurations(prev => 
-            prev.map(config => 
-              config.scene_id === configurationData.scene_id 
+          setSceneConfigurations(prev =>
+            prev.map(config =>
+              config.scene_id === configurationData.scene_id
                 ? { ...config, ...updateData }
                 : config
             )
@@ -119,20 +132,28 @@ export const useSceneData = () => {
     }
   };
 
-  const deleteSceneConfiguration = async (sceneId: number): Promise<boolean> => {
+  const deleteSceneConfiguration = async (sceneId: number, instanceId?: string): Promise<boolean> => {
     try {
       setError(null);
-      
-      const { error } = await supabase
+
+      let query = supabase
         .from('scene_configurations')
         .delete()
         .eq('scene_id', sceneId);
 
+      if (instanceId) {
+        query = query.eq('instance_id', instanceId);
+      } else {
+        query = query.is('instance_id', null);
+      }
+
+      const { error } = await query;
+
       if (error) throw error;
-      
+
       // Update local state
       setSceneConfigurations(prev => prev.filter(config => config.scene_id !== sceneId));
-      
+
       return true;
     } catch (err) {
       console.error('Error deleting scene configuration:', err);
@@ -141,31 +162,37 @@ export const useSceneData = () => {
     }
   };
 
-  const updateSceneConfiguration = async (sceneId: number, updates: Partial<SceneConfiguration>): Promise<boolean> => {
+  const updateSceneConfiguration = async (sceneId: number, updates: Partial<SceneConfiguration>, instanceId?: string): Promise<boolean> => {
     try {
       setError(null);
-      
-      const { data, error } = await supabase
+
+      let query = supabase
         .from('scene_configurations')
         .update({
           ...updates,
           updated_at: new Date().toISOString()
         })
-        .eq('scene_id', sceneId)
-        .select()
-        .single();
+        .eq('scene_id', sceneId);
+
+      if (instanceId) {
+        query = query.eq('instance_id', instanceId);
+      } else {
+        query = query.is('instance_id', null);
+      }
+
+      const { data, error } = await query.select().single();
 
       if (error) throw error;
-      
+
       // Update local state
-      setSceneConfigurations(prev => 
-        prev.map(config => 
-          config.scene_id === sceneId 
+      setSceneConfigurations(prev =>
+        prev.map(config =>
+          config.scene_id === sceneId
             ? { ...config, ...data }
             : config
         )
       );
-      
+
       return true;
     } catch (err) {
       console.error('Error updating scene configuration:', err);
@@ -181,19 +208,19 @@ export const useSceneData = () => {
   const exportSceneConfiguration = (sceneId: number): string => {
     const config = getSceneConfiguration(sceneId);
     if (!config) return '';
-    
+
     return JSON.stringify(config, null, 2);
   };
 
-  const importSceneConfiguration = async (configData: string): Promise<boolean> => {
+  const importSceneConfiguration = async (configData: string, instanceId?: string): Promise<boolean> => {
     try {
       const parsed = JSON.parse(configData);
-      
+
       if (!parsed.scene_id || !parsed.title || !parsed.description) {
         throw new Error('Invalid configuration data');
       }
-      
-      return await saveSceneConfiguration(parsed as SceneData);
+
+      return await saveSceneConfiguration(parsed as SceneData, instanceId);
     } catch (err) {
       console.error('Error importing scene configuration:', err);
       setError(err instanceof Error ? err.message : 'Failed to import scene configuration');

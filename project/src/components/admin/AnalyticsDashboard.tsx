@@ -1,11 +1,15 @@
 import React, { useState, useMemo } from 'react';
-import { BarChart3, Users, Clock, TrendingUp, Award, Target, RefreshCw, Grid, List, Search, Filter, Download } from 'lucide-react';
+import { BarChart3, Users, Clock, TrendingUp, Award, Target, RefreshCw, Grid, List, Search, Filter } from 'lucide-react';
 import { useAnalytics } from '../../hooks/useAnalytics';
 import SessionCard from './SessionCard';
 import SessionDetailModal from './SessionDetailModal';
 
-const AnalyticsDashboard: React.FC = () => {
-  const { analyticsData, summary, loading, error, refetch } = useAnalytics();
+interface AnalyticsDashboardProps {
+  instanceId?: string;
+}
+
+const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) => {
+  const { analyticsData, summary, loading, error, refetch } = useAnalytics(instanceId);
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [searchTerm, setSearchTerm] = useState('');
@@ -21,13 +25,13 @@ const AnalyticsDashboard: React.FC = () => {
       // Search filter
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
-        const matchesSearch = 
-          session.session_id.toLowerCase().includes(searchLower) ||
-          session.user_demographics.age.toLowerCase().includes(searchLower) ||
-          session.user_demographics.educationLevel.toLowerCase().includes(searchLower) ||
-          (session.user_demographics.organization && session.user_demographics.organization.toLowerCase().includes(searchLower)) ||
-          (session.user_demographics.school && session.user_demographics.school.toLowerCase().includes(searchLower));
-        
+        const matchesSearch =
+          session.session_id?.toLowerCase().includes(searchLower) ||
+          (session.user_demographics?.age && String(session.user_demographics.age).toLowerCase().includes(searchLower)) ||
+          (session.user_demographics?.educationLevel && String(session.user_demographics.educationLevel).toLowerCase().includes(searchLower)) ||
+          (session.user_demographics?.organization && String(session.user_demographics.organization).toLowerCase().includes(searchLower)) ||
+          (session.user_demographics?.school && String(session.user_demographics.school).toLowerCase().includes(searchLower));
+
         if (!matchesSearch) return false;
       }
 
@@ -39,12 +43,12 @@ const AnalyticsDashboard: React.FC = () => {
       }
 
       // Education filter
-      if (educationFilter !== 'all' && session.user_demographics.educationLevel !== educationFilter) {
+      if (educationFilter !== 'all' && session.user_demographics?.educationLevel !== educationFilter) {
         return false;
       }
 
       // Age filter
-      if (ageFilter !== 'all' && session.user_demographics.age !== ageFilter) {
+      if (ageFilter !== 'all' && session.user_demographics?.age !== ageFilter) {
         return false;
       }
 
@@ -55,12 +59,12 @@ const AnalyticsDashboard: React.FC = () => {
   // Get unique values for filters
   const uniqueEducationLevels = useMemo(() => {
     if (!analyticsData) return [];
-    return Array.from(new Set(analyticsData.map(s => s.user_demographics.educationLevel)));
+    return Array.from(new Set(analyticsData.map(s => s.user_demographics?.educationLevel).filter(Boolean)));
   }, [analyticsData]);
 
   const uniqueAgeGroups = useMemo(() => {
     if (!analyticsData) return [];
-    return Array.from(new Set(analyticsData.map(s => s.user_demographics.age)));
+    return Array.from(new Set(analyticsData.map(s => s.user_demographics?.age).filter(Boolean)));
   }, [analyticsData]);
 
   if (loading) {
@@ -162,7 +166,7 @@ const AnalyticsDashboard: React.FC = () => {
             <Target className="w-5 h-5 text-blue-600" />
             Performance by Competency Domain
           </h3>
-          
+
           <div className="space-y-4">
             {[
               { key: 'timelyPainManagement', label: 'Timely Pain Management', color: 'orange' },
@@ -201,21 +205,19 @@ const AnalyticsDashboard: React.FC = () => {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-lg transition-colors ${
-                  viewMode === 'grid' 
-                    ? 'bg-blue-100 text-blue-600' 
-                    : 'text-gray-500 hover:bg-gray-100'
-                }`}
+                className={`p-2 rounded-lg transition-colors ${viewMode === 'grid'
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'text-gray-500 hover:bg-gray-100'
+                  }`}
               >
                 <Grid className="w-4 h-4" />
               </button>
               <button
                 onClick={() => setViewMode('list')}
-                className={`p-2 rounded-lg transition-colors ${
-                  viewMode === 'list' 
-                    ? 'bg-blue-100 text-blue-600' 
-                    : 'text-gray-500 hover:bg-gray-100'
-                }`}
+                className={`p-2 rounded-lg transition-colors ${viewMode === 'list'
+                  ? 'bg-blue-100 text-blue-600'
+                  : 'text-gray-500 hover:bg-gray-100'
+                  }`}
               >
                 <List className="w-4 h-4" />
               </button>
@@ -276,7 +278,7 @@ const AnalyticsDashboard: React.FC = () => {
               </select>
             </div>
           </div>
-          
+
           {filteredData.length === 0 ? (
             <div className="text-center py-12">
               <Filter className="w-12 h-12 mx-auto mb-4 text-gray-400" />
@@ -309,18 +311,18 @@ const AnalyticsDashboard: React.FC = () => {
                 </thead>
                 <tbody>
                   {filteredData.slice(0, 10).map((entry, index) => (
-                    <tr 
-                      key={entry.id} 
+                    <tr
+                      key={entry.id}
                       className={`${index % 2 === 0 ? 'bg-gray-50' : ''} hover:bg-blue-50 transition-colors`}
                     >
                       <td className="py-3 px-4 text-sm text-gray-600">
                         {new Date(entry.submission_timestamp).toLocaleDateString()}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600">
-                        {entry.user_demographics.age}
+                        {entry.user_demographics?.age || 'N/A'}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600">
-                        {entry.user_demographics.educationLevel}
+                        {entry.user_demographics?.educationLevel || 'N/A'}
                       </td>
                       <td className="py-3 px-4 text-sm text-right font-semibold text-gray-900">
                         {entry.final_score}%

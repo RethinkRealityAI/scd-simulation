@@ -13,10 +13,10 @@ const iconMap: { [key: string]: any } = {
 
 const WelcomeScreen: React.FC = () => {
   const { config, loading } = useWelcomeConfig();
+  const [userType, setUserType] = useState<'student' | 'professional'>('student');
   const [educationLevel, setEducationLevel] = useState('');
   const [organization, setOrganization] = useState('');
   const [school, setSchool] = useState('');
-  const [year, setYear] = useState('');
   const [program, setProgram] = useState('');
   const [field, setField] = useState('');
   const [howHeard, setHowHeard] = useState('');
@@ -25,20 +25,18 @@ const WelcomeScreen: React.FC = () => {
   const { dispatch } = useSimulation();
 
   const isFormValid = () => {
-    return (
-      (!config.form_fields.education_level.required || educationLevel) &&
-      (!config.form_fields.organization.required || organization) &&
-      (!config.form_fields.school.required || school) &&
-      (!config.form_fields.year.required || year) &&
-      (!config.form_fields.program.required || program) &&
-      (!config.form_fields.field.required || field) &&
-      (!config.form_fields.how_heard.required || howHeard)
-    );
+    if (!howHeard) return false;
+
+    if (userType === 'student') {
+      return school && educationLevel && program;
+    } else {
+      return organization && field;
+    }
   };
 
   const handleFormSubmit = () => {
     if (!isFormValid()) return;
-    
+
     if (config.modal_enabled) {
       setShowModal(true);
     } else {
@@ -49,17 +47,19 @@ const WelcomeScreen: React.FC = () => {
   const handleStartSimulation = () => {
     dispatch({
       type: 'INITIALIZE_USER',
-      payload: { 
-        educationLevel, 
-        organization, 
-        school, 
-        year, 
-        program, 
-        field, 
-        howHeard 
+      payload: {
+        name: 'Anonymous',
+        userType,
+        educationLevel: userType === 'student' ? educationLevel : '',
+        organization: userType === 'professional' ? organization : '',
+        school: userType === 'student' ? school : '',
+        year: '',
+        program: userType === 'student' ? program : '',
+        field: userType === 'professional' ? field : '',
+        howHeard
       }
     });
-    
+
     navigate('/scene/1');
   };
 
@@ -85,7 +85,7 @@ const WelcomeScreen: React.FC = () => {
 
   return (
     <>
-      <div 
+      <div
         className="h-screen overflow-hidden relative"
         style={{
           backgroundImage: `url(${config.background_image_url})`,
@@ -96,7 +96,7 @@ const WelcomeScreen: React.FC = () => {
         }}
       >
         {/* Dark overlay with configurable opacity */}
-        <div 
+        <div
           className="absolute inset-0 bg-black"
           style={{ opacity: config.background_overlay_opacity / 100 }}
         ></div>
@@ -107,11 +107,9 @@ const WelcomeScreen: React.FC = () => {
             <div className="max-w-2xl w-full">
               {/* Main Heading */}
               <div className="mb-8">
-                <h1 className={`${config.main_title_size} md:${config.main_title_size} font-bold text-white mb-4 leading-tight`}>
-                  {config.main_title}
-                  <br />
+                <h1 className="text-4xl md:text-5xl font-bold text-white mb-4 leading-tight">
                   <span className={`bg-gradient-to-r ${config.gradient_colors} bg-clip-text text-transparent`}>
-                    {config.gradient_title}
+                    Sickle Cell Vaso-occlusive Crisis Care
                   </span>
                   <br />
                   Digital Simulation
@@ -137,157 +135,163 @@ const WelcomeScreen: React.FC = () => {
                   );
                 })}
               </div>
+
+              {/* Research Purpose Text */}
+              <div className="text-gray-400 text-xs text-center mt-12 px-4 py-3 bg-white/5 backdrop-blur-sm rounded-xl border border-white/10">
+                {config.data_collection_footer.map((text, index) => (
+                  <p key={index} className={index > 0 ? 'mt-1' : ''}>{text}</p>
+                ))}
+              </div>
             </div>
           </div>
 
-              {/* Right Side - Registration */}
-              <div className="flex-1 flex flex-col items-center justify-center p-4 lg:p-6 relative">
-                {/* Registration Form */}
-                <div className="w-full max-w-lg">
-              <div 
-                className={`bg-white/${config.form_background_opacity} ${config.form_backdrop_blur} rounded-2xl p-6 border border-white/${config.form_border_opacity} shadow-2xl`}
+          {/* Right Side - Registration */}
+          <div className="flex-1 flex flex-col items-center p-4 lg:p-6 relative overflow-y-auto">
+            {/* Registration Form */}
+            <div className="w-full max-w-lg m-auto">
+              <div
+                className={`bg-white/${config.form_background_opacity} ${config.form_backdrop_blur} rounded-2xl p-4 md:p-6 border border-white/${config.form_border_opacity} shadow-2xl`}
               >
-                <h3 className="text-xl font-bold text-white mb-2 text-center">
+                <h3 className="text-xl font-bold text-white mb-1 text-center">
                   {config.form_title}
                 </h3>
-                <p className="text-gray-300 text-sm text-center mb-6">
+                <p className="text-gray-300 text-sm text-center mb-4">
                   {config.form_subtitle}
                 </p>
-                
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Left Column */}
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">
-                        {config.form_fields.education_level.label}
-                        {config.form_fields.education_level.required && <span className="text-red-400 ml-1">*</span>}
-                      </label>
-                      <select
-                        value={educationLevel}
-                        onChange={(e) => setEducationLevel(e.target.value)}
-                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
-                        required={config.form_fields.education_level.required}
-                      >
-                        <option value="" className="bg-slate-800 text-white">Select your education level</option>
-                        {config.form_fields.education_level.options.map((opt) => (
-                          <option key={opt.value} value={opt.value} className="bg-slate-800 text-white">
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">
-                        {config.form_fields.organization.label}
-                        {config.form_fields.organization.required && <span className="text-red-400 ml-1">*</span>}
-                      </label>
-                      <input
-                        type="text"
-                        value={organization}
-                        onChange={(e) => setOrganization(e.target.value)}
-                        placeholder={config.form_fields.organization.placeholder}
-                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
-                        required={config.form_fields.organization.required}
-                      />
-                    </div>
+                {/* User Type Tabs */}
+                <div className="flex p-1 bg-white/5 backdrop-blur-lg rounded-xl mb-4 border border-white/10">
+                  <button
+                    onClick={() => setUserType('student')}
+                    className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${userType === 'student'
+                      ? 'bg-blue-500 text-white shadow-lg'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                  >
+                    Student
+                  </button>
+                  <button
+                    onClick={() => setUserType('professional')}
+                    className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all duration-200 ${userType === 'professional'
+                      ? 'bg-purple-500 text-white shadow-lg'
+                      : 'text-gray-400 hover:text-white hover:bg-white/5'
+                      }`}
+                  >
+                    Professional
+                  </button>
+                </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">
-                        {config.form_fields.school.label}
-                        {config.form_fields.school.required && <span className="text-red-400 ml-1">*</span>}
-                      </label>
-                      <input
-                        type="text"
-                        value={school}
-                        onChange={(e) => setSchool(e.target.value)}
-                        placeholder={config.form_fields.school.placeholder}
-                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
-                        required={config.form_fields.school.required}
-                      />
-                    </div>
-                  </div>
+                <div className="space-y-3">
+                  {userType === 'student' ? (
+                    <>
+                      {/* Student Fields */}
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-1">
+                          School <span className="text-red-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={school}
+                          onChange={(e) => setSchool(e.target.value)}
+                          placeholder="Enter your school"
+                          className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
+                          required
+                        />
+                      </div>
 
-                  {/* Right Column */}
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">
-                        {config.form_fields.year.label}
-                        {config.form_fields.year.required && <span className="text-red-400 ml-1">*</span>}
-                      </label>
-                      <select
-                        value={year}
-                        onChange={(e) => setYear(e.target.value)}
-                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
-                        required={config.form_fields.year.required}
-                      >
-                        <option value="" className="bg-slate-800 text-white">Select your year</option>
-                        {config.form_fields.year.options.map((opt) => (
-                          <option key={opt.value} value={opt.value} className="bg-slate-800 text-white">
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-1">
+                          Education Level <span className="text-red-400">*</span>
+                        </label>
+                        <select
+                          value={educationLevel}
+                          onChange={(e) => setEducationLevel(e.target.value)}
+                          className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
+                          required
+                        >
+                          <option value="" className="bg-slate-800 text-white">Select your education level</option>
+                          {config.form_fields.education_level.options.map((opt) => (
+                            <option key={opt.value} value={opt.value} className="bg-slate-800 text-white">
+                              {opt.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">
-                        {config.form_fields.program.label}
-                        {config.form_fields.program.required && <span className="text-red-400 ml-1">*</span>}
-                      </label>
-                      <input
-                        type="text"
-                        value={program}
-                        onChange={(e) => setProgram(e.target.value)}
-                        placeholder={config.form_fields.program.placeholder}
-                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
-                        required={config.form_fields.program.required}
-                      />
-                    </div>
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-1">
+                          Program <span className="text-red-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={program}
+                          onChange={(e) => setProgram(e.target.value)}
+                          placeholder="Enter your program"
+                          className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
+                          required
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      {/* Professional Fields */}
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-1">
+                          Organization <span className="text-red-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={organization}
+                          onChange={(e) => setOrganization(e.target.value)}
+                          placeholder="Enter your organization"
+                          className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
+                          required
+                        />
+                      </div>
 
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">
-                        {config.form_fields.field.label}
-                        {config.form_fields.field.required && <span className="text-red-400 ml-1">*</span>}
-                      </label>
-                      <input
-                        type="text"
-                        value={field}
-                        onChange={(e) => setField(e.target.value)}
-                        placeholder={config.form_fields.field.placeholder}
-                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
-                        required={config.form_fields.field.required}
-                      />
-                    </div>
+                      <div>
+                        <label className="block text-sm font-medium text-white mb-1">
+                          Field of Work <span className="text-red-400">*</span>
+                        </label>
+                        <input
+                          type="text"
+                          value={field}
+                          onChange={(e) => setField(e.target.value)}
+                          placeholder="Enter your field of work"
+                          className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200`}
+                          required
+                        />
+                      </div>
+                    </>
+                  )}
 
-                    <div>
-                      <label className="block text-sm font-medium text-white mb-2">
-                        {config.form_fields.how_heard.label}
-                        {config.form_fields.how_heard.required && <span className="text-red-400 ml-1">*</span>}
-                      </label>
-                      <select
-                        value={howHeard}
-                        onChange={(e) => setHowHeard(e.target.value)}
-                        className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
-                        required={config.form_fields.how_heard.required}
-                      >
-                        <option value="" className="bg-slate-800 text-white">Select how you heard about this</option>
-                        {config.form_fields.how_heard.options.map((opt) => (
-                          <option key={opt.value} value={opt.value} className="bg-slate-800 text-white">
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                  {/* Common Field: How Heard */}
+                  <div>
+                    <label className="block text-sm font-medium text-white mb-1">
+                      How did you hear about this simulation? <span className="text-red-400">*</span>
+                    </label>
+                    <select
+                      value={howHeard}
+                      onChange={(e) => setHowHeard(e.target.value)}
+                      className={`w-full p-2 rounded-lg bg-white/${config.form_background_opacity} ${config.input_backdrop_blur} border border-white/${config.input_border_opacity} text-white placeholder-gray-300 focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all duration-200 appearance-none cursor-pointer`}
+                      required
+                    >
+                      <option value="" className="bg-slate-800 text-white">Select an option</option>
+                      {config.form_fields.how_heard.options.map((opt) => (
+                        <option key={opt.value} value={opt.value} className="bg-slate-800 text-white">
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
 
                 {/* Submit Button - Full Width */}
-                <div className="mt-6">
+                <div className="mt-4">
                   <button
                     onClick={handleFormSubmit}
                     disabled={!isFormValid()}
-                    className={`w-full py-3 px-6 rounded-lg bg-gradient-to-r ${config.button_gradient} text-white font-semibold text-base
+                    className={`w-full py-2.5 px-6 rounded-lg bg-gradient-to-r ${config.button_gradient} text-white font-semibold text-base
                              disabled:from-gray-600 disabled:to-gray-700 disabled:cursor-not-allowed
                              enabled:hover:from-blue-400 enabled:hover:to-purple-400 
                              transition-all duration-300 transform enabled:hover:scale-[1.02] enabled:hover:shadow-lg
@@ -300,17 +304,12 @@ const WelcomeScreen: React.FC = () => {
               </div>
 
               {/* Data Collection Footer */}
-              <div className="text-center mt-6 space-y-3">
+              <div className="text-center mt-4 space-y-2">
                 <div className="p-3 rounded-xl bg-white/5 backdrop-blur-xl border border-white/10">
                   <h4 className="text-white font-semibold mb-2 text-sm">{config.data_collection_title}</h4>
                   <p className="text-gray-300 text-xs leading-relaxed">
                     {config.data_collection_text}
                   </p>
-                </div>
-                <div className="text-gray-400 text-xs">
-                  {config.data_collection_footer.map((text, index) => (
-                    <p key={index} className={index > 0 ? 'mt-1' : ''}>{text}</p>
-                  ))}
                 </div>
               </div>
             </div>
@@ -320,7 +319,7 @@ const WelcomeScreen: React.FC = () => {
 
       {/* Welcome Modal */}
       {config.modal_enabled && (
-        <WelcomeModal 
+        <WelcomeModal
           isOpen={showModal}
           onClose={() => setShowModal(false)}
           onStart={handleStartSimulation}

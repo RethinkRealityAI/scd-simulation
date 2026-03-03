@@ -10,7 +10,7 @@ import { AlertCircle, Loader2 } from 'lucide-react';
 const InstanceSimulation: React.FC = () => {
   const { institutionId } = useParams<{ institutionId: string }>();
   const navigate = useNavigate();
-  const { state, dispatch, loadInstance } = useInstanceSimulation();
+  const { state, loadInstance } = useInstanceSimulation();
   const [initialized, setInitialized] = useState(false);
 
   useEffect(() => {
@@ -25,7 +25,7 @@ const InstanceSimulation: React.FC = () => {
   useEffect(() => {
     if (state.instance?.branding_config) {
       const branding = state.instance.branding_config;
-      
+
       // Apply CSS custom properties
       const root = document.documentElement;
       root.style.setProperty('--primary-color', branding.primary_color);
@@ -38,11 +38,11 @@ const InstanceSimulation: React.FC = () => {
       // Apply custom CSS if provided
       if (branding.custom_css) {
         const styleId = 'instance-custom-css';
-        let existingStyle = document.getElementById(styleId);
+        const existingStyle = document.getElementById(styleId);
         if (existingStyle) {
           existingStyle.remove();
         }
-        
+
         const style = document.createElement('style');
         style.id = styleId;
         style.textContent = branding.custom_css;
@@ -108,10 +108,10 @@ const InstanceSimulation: React.FC = () => {
       <Routes>
         {/* Welcome screen - default route */}
         <Route path="/" element={<InstanceWelcomeScreen />} />
-        
+
         {/* Scene routes */}
         <Route path="/scene/:sceneId" element={<InstanceSimulationScene />} />
-        
+
         {/* Completion route */}
         <Route path="/completion" element={<InstanceResultsScreen />} />
       </Routes>

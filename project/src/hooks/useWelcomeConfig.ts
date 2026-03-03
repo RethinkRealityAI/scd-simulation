@@ -211,24 +211,32 @@ const defaultConfig: WelcomeConfiguration = {
   updated_at: ''
 };
 
-export const useWelcomeConfig = () => {
+export const useWelcomeConfig = (instanceId?: string) => {
   const [config, setConfig] = useState<WelcomeConfiguration>(defaultConfig);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     fetchWelcomeConfig();
-  }, []);
+  }, [instanceId]);
 
   const fetchWelcomeConfig = async () => {
     try {
       setLoading(true);
       setError(null);
-      
-      const { data, error } = await supabase
+
+      let query = supabase
         .from('welcome_configurations')
         .select('*')
-        .eq('is_active', true)
+        .eq('is_active', true);
+
+      if (instanceId) {
+        query = query.eq('instance_id', instanceId);
+      } else {
+        query = query.is('instance_id', null);
+      }
+
+      const { data, error } = await query
         .order('created_at', { ascending: false })
         .limit(1)
         .single();
@@ -257,42 +265,56 @@ export const useWelcomeConfig = () => {
   const saveWelcomeConfig = async (newConfig: Partial<WelcomeConfiguration>): Promise<boolean> => {
     try {
       setError(null);
-      
-      const configData = {
-        ...newConfig,
+
+      // Remove id if it's empty string to avoid uuid parsing errors
+      const { id, ...restConfig } = newConfig as Partial<WelcomeConfiguration>;
+
+      const configData: any = {
+        ...restConfig,
         is_active: true,
         updated_at: new Date().toISOString()
       };
 
-      // Try to update existing config first
-      const { data: updateData, error: updateError } = await supabase
-        .from('welcome_configurations')
-        .update(configData)
-        .eq('is_active', true)
-        .select()
-        .single();
+      if (instanceId) {
+        configData.instance_id = instanceId;
+      }
 
-      if (updateError) {
-        // If no active config exists, create new one
-        if (updateError.code === 'PGRST116') {
-          const { data: insertData, error: insertError } = await supabase
-            .from('welcome_configurations')
-            .insert([{
-              ...defaultConfig,
-              ...configData,
-              created_at: new Date().toISOString()
-            }])
-            .select()
-            .single();
+      if (id && id !== '') {
+        configData.id = id;
+      }
 
-          if (insertError) throw insertError;
-          
-          setConfig(insertData);
-        } else {
+      // If we have an ID, update by ID
+      if (id && id !== '') {
+        configData.id = id;
+        const { data: updateData, error: updateError } = await supabase
+          .from('welcome_configurations')
+          .update(configData)
+          .eq('id', id)
+          .select()
+          .single();
+
+        if (updateError) {
           throw updateError;
         }
-      } else {
+
         setConfig(updateData);
+        return true;
+      } else {
+        // If we don't have an ID, we insert a new one
+        const { data: insertData, error: insertError } = await supabase
+          .from('welcome_configurations')
+          .insert([{
+            ...(({ id: _, ...rest }) => rest)(defaultConfig),
+            ...configData,
+            created_at: new Date().toISOString()
+          }])
+          .select()
+          .single();
+
+        if (insertError) throw insertError;
+
+        setConfig(insertData);
+        return true;
       }
 
       return true;
@@ -306,30 +328,44 @@ export const useWelcomeConfig = () => {
   const resetToDefault = async (): Promise<boolean> => {
     try {
       setError(null);
-      
+
       // Deactivate all existing configurations
-      const { error: deactivateError } = await supabase
+      let updateQuery = supabase
         .from('welcome_configurations')
         .update({ is_active: false })
         .eq('is_active', true);
 
+      if (instanceId) {
+        updateQuery = updateQuery.eq('instance_id', instanceId);
+      } else {
+        updateQuery = updateQuery.is('instance_id', null);
+      }
+
+      const { error: deactivateError } = await updateQuery;
+
       if (deactivateError) throw deactivateError;
 
       // Create new default configuration
+      const newConfigData: any = {
+        ...defaultConfig,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      if (instanceId) {
+        newConfigData.instance_id = instanceId;
+      }
+
       const { data, error: insertError } = await supabase
         .from('welcome_configurations')
-        .insert([{
-          ...defaultConfig,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }])
+        .insert([newConfigData])
         .select()
         .single();
 
       if (insertError) throw insertError;
-      
+
       setConfig(data);
-      
+
       return true;
     } catch (err) {
       console.error('Error resetting welcome configuration:', err);
@@ -345,12 +381,12 @@ export const useWelcomeConfig = () => {
   const importConfig = async (configJson: string): Promise<boolean> => {
     try {
       const importedConfig = JSON.parse(configJson);
-      
+
       // Validate required fields
       if (!importedConfig.main_title || !importedConfig.subtitle) {
         throw new Error('Invalid configuration: missing required fields');
       }
-      
+
       return await saveWelcomeConfig(importedConfig);
     } catch (err) {
       console.error('Error importing welcome configuration:', err);

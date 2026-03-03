@@ -1,52 +1,22 @@
 import React, { useState } from 'react';
-import { useSceneData } from '../../hooks/useSceneData';
-import { scenes, SceneData } from '../../data/scenesData';
-import SceneEditorModal from './SceneEditorModal';
 import EnhancedWelcomeScreenEditor from './EnhancedWelcomeScreenEditor';
 import AnalyticsDashboard from './AnalyticsDashboard';
-import EnhancedVideoManagement from './EnhancedVideoManagement';
 import SceneManagementDashboard from './SceneManagementDashboard';
 import SimulationInstanceDashboard from './SimulationInstanceDashboard';
 import AdminHeader from './AdminHeader';
 import { useSimulationInstances } from '../../hooks/useSimulationInstances';
 import CreateInstanceModal from './CreateInstanceModal';
-import { 
-  Video, 
-  CheckCircle, 
-  AlertCircle, 
-  Edit,
-  Save,
-  Settings,
-  BarChart3,
-  Database,
-  Activity,
-  Target,
-  Heart,
-  DoorOpen,
-  Upload,
-  Layers,
-  Monitor,
-  Shield,
-  Building2
-} from 'lucide-react';
+import { CheckCircle, AlertCircle } from 'lucide-react';
+
+type AdminTab = 'instances' | 'scenes' | 'analytics' | 'welcome';
 
 const AdminDashboard: React.FC = () => {
-  const { saveSceneConfiguration, exportSceneConfiguration, importSceneConfiguration } = useSceneData();
   const { instances, createInstance, loading } = useSimulationInstances();
-  
+
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
-  const [activeTab, setActiveTab] = useState<'instances' | 'videos' | 'scenes' | 'analytics' | 'settings' | 'welcome' | 'scene-management'>('instances');
+  const [activeTab, setActiveTab] = useState<AdminTab>('instances');
   const [selectedInstanceId, setSelectedInstanceId] = useState<string | null>(null);
   const [showCreateInstanceModal, setShowCreateInstanceModal] = useState(false);
-  
-  // Scene management state
-  const [selectedSceneForEdit, setSelectedSceneForEdit] = useState<number | null>(null);
-  const [sceneEditData, setSceneEditData] = useState<Partial<SceneData>>({});
-  const [showSceneEditor, setShowSceneEditor] = useState(false);
-  
-  // Settings state
-  const [webhookUrl, setWebhookUrl] = useState(import.meta.env.VITE_WEBHOOK_URL || 'https://hook.us2.make.com/255f21cb3adzdqw4kobc89b981g1jmie');
-  const [settingsChanged, setSettingsChanged] = useState(false);
 
   const selectedInstance = instances.find(instance => instance.id === selectedInstanceId);
 
@@ -65,46 +35,35 @@ const AdminDashboard: React.FC = () => {
   const renderActiveTab = () => {
     switch (activeTab) {
       case 'instances':
-        return <SimulationInstanceDashboard onClose={() => {}} />;
-      case 'videos':
-        return <EnhancedVideoManagement onMessage={setMessage} />;
+        return <SimulationInstanceDashboard onClose={() => { }} />;
       case 'scenes':
-        return <SceneManagementDashboard />;
-      case 'scene-management':
-        return <SceneManagementDashboard />;
+        return <SceneManagementDashboard instanceId={selectedInstanceId || undefined} />;
       case 'analytics':
-        return <AnalyticsDashboard />;
-      case 'settings':
-        return (
-          <div className="p-6">
-            <h2 className="text-2xl font-bold mb-4">Settings</h2>
-            <p className="text-gray-600">Settings dashboard coming soon...</p>
-          </div>
-        );
+        return <AnalyticsDashboard instanceId={selectedInstanceId || undefined} />;
       case 'welcome':
-        return <EnhancedWelcomeScreenEditor />;
+        return <EnhancedWelcomeScreenEditor instanceId={selectedInstanceId || undefined} />;
       default:
-        return <SimulationInstanceDashboard onClose={() => {}} />;
+        return <SimulationInstanceDashboard onClose={() => { }} />;
     }
   };
 
   return (
     <div className="h-screen flex flex-col bg-gray-50 overflow-hidden">
       {/* Modern Header with Institution Selector */}
-          <AdminHeader
-            selectedInstanceId={selectedInstanceId}
-            selectedInstance={selectedInstance}
-            onInstanceChange={handleInstanceChange}
-            onCreateNew={handleCreateNew}
-            activeTab={activeTab}
-            onTabChange={setActiveTab}
-            instances={instances}
-            loading={loading}
-          />
+      <AdminHeader
+        selectedInstanceId={selectedInstanceId}
+        selectedInstance={selectedInstance}
+        onInstanceChange={handleInstanceChange}
+        onCreateNew={handleCreateNew}
+        activeTab={activeTab}
+        onTabChange={(tab: string) => setActiveTab(tab as AdminTab)}
+        instances={instances}
+        loading={loading}
+      />
 
       {/* Main Content Area */}
       <div className="flex-1 overflow-hidden">
-        <div className="h-full overflow-y-auto">
+        <div className="h-full overflow-y-auto p-6">
           {renderActiveTab()}
         </div>
       </div>
@@ -127,20 +86,36 @@ const AdminDashboard: React.FC = () => {
         />
       )}
 
-      {/* Message Display */}
+      {/* Toast Notification */}
       {message && (
-        <div className={`fixed top-4 right-4 z-50 p-4 rounded-lg shadow-lg ${
-          message.type === 'success' 
-            ? 'bg-green-100 border border-green-400 text-green-700' 
-            : 'bg-red-100 border border-red-400 text-red-700'
-        }`}>
-          <div className="flex items-center gap-2">
-            {message.type === 'success' ? (
-              <CheckCircle className="w-5 h-5" />
-            ) : (
-              <AlertCircle className="w-5 h-5" />
-            )}
-            <span>{message.text}</span>
+        <div className="fixed top-6 right-6 z-50 max-w-sm animate-slide-in">
+          <div className={`flex items-start gap-3 p-4 rounded-xl shadow-2xl border backdrop-blur-sm transition-all duration-300 ${message.type === 'success'
+            ? 'bg-emerald-50/95 border-emerald-200 text-emerald-800'
+            : 'bg-red-50/95 border-red-200 text-red-800'
+            }`}>
+            <div className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 ${message.type === 'success' ? 'bg-emerald-100' : 'bg-red-100'
+              }`}>
+              {message.type === 'success' ? (
+                <CheckCircle className="w-4 h-4 text-emerald-600" />
+              ) : (
+                <AlertCircle className="w-4 h-4 text-red-600" />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold">
+                {message.type === 'success' ? 'Success' : 'Error'}
+              </p>
+              <p className="text-xs mt-0.5 opacity-80">{message.text}</p>
+            </div>
+            <button
+              onClick={() => setMessage(null)}
+              className="text-gray-400 hover:text-gray-600 transition-colors p-0.5"
+            >
+              <span className="sr-only">Close</span>
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
           </div>
         </div>
       )}

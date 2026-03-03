@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Save, RefreshCw, AlertCircle, CheckCircle, Palette, Globe, Shield } from 'lucide-react';
+import { X, Save, RefreshCw, AlertCircle } from 'lucide-react';
 import { SimulationInstance } from '../../hooks/useSimulationInstances';
 
 interface InstanceSettingsModalProps {
@@ -22,7 +22,7 @@ const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({ instance,
     try {
       setSaving(true);
       setError(null);
-      
+
       await onSave(instance.id, editedInstance);
       onClose();
     } catch (err) {
@@ -49,19 +49,11 @@ const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({ instance,
     }));
   };
 
-  const handleContentChange = (field: keyof SimulationInstance['content_config'], value: any) => {
-    setEditedInstance(prev => ({
-      ...prev,
-      content_config: {
-        ...prev.content_config,
-        [field]: value
-      }
-    }));
-  };
+
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl h-[90vh] flex flex-col overflow-hidden">
         {/* Header */}
         <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white p-6">
           <div className="flex items-center justify-between">
@@ -90,11 +82,10 @@ const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({ instance,
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === tab.id
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-200'
+                  }`}
               >
                 <span className="mr-2">{tab.icon}</span>
                 {tab.label}
@@ -104,7 +95,7 @@ const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({ instance,
         </div>
 
         {/* Content */}
-        <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
+        <div className="p-6 overflow-y-auto flex-1 min-h-0">
           {error && (
             <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2">
               <AlertCircle className="w-5 h-5 text-red-600" />
@@ -384,7 +375,7 @@ const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({ instance,
                   The webhook will receive a POST request with the following JSON structure:
                 </p>
                 <pre className="text-xs text-blue-700 bg-blue-100 p-2 rounded overflow-x-auto">
-{`{
+                  {`{
   "instance_id": "uuid",
   "institution_id": "string",
   "session_id": "string",
@@ -405,7 +396,7 @@ const InstanceSettingsModal: React.FC<InstanceSettingsModalProps> = ({ instance,
             <div className="space-y-6">
               <div className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
                 <p className="text-yellow-800 text-sm">
-                  <strong>Note:</strong> Content configuration is complex and requires JSON editing. 
+                  <strong>Note:</strong> Content configuration is complex and requires JSON editing.
                   Advanced content management will be added in a future update.
                 </p>
               </div>

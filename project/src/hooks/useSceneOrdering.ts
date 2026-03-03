@@ -11,28 +11,36 @@ export interface SceneOrderItem {
   updated_at: string;
 }
 
-export const useSceneOrdering = () => {
+export const useSceneOrdering = (instanceId?: string) => {
   const [sceneOrder, setSceneOrder] = useState<SceneOrderItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchSceneOrder();
-  }, []);
+    fetchSceneOrder(instanceId);
+  }, [instanceId]);
 
-  const fetchSceneOrder = async () => {
+  const fetchSceneOrder = async (targetInstanceId: string | undefined = instanceId) => {
     try {
       setLoading(true);
       setError(null);
-      
-      const { data, error } = await supabase
+
+      let query = supabase
         .from('scene_order')
         .select('*')
         .eq('is_active', true)
         .order('display_order');
 
+      if (targetInstanceId) {
+        query = query.eq('instance_id', targetInstanceId);
+      } else {
+        query = query.is('instance_id', null);
+      }
+
+      const { data, error } = await query;
+
       if (error) throw error;
-      
+
       setSceneOrder(data || []);
     } catch (err) {
       console.error('Error fetching scene order:', err);
@@ -42,32 +50,40 @@ export const useSceneOrdering = () => {
     }
   };
 
-  const updateSceneOrder = async (newOrder: SceneOrderItem[]): Promise<boolean> => {
+  const updateSceneOrder = async (newOrder: SceneOrderItem[], targetInstanceId: string | undefined = instanceId): Promise<boolean> => {
     try {
       setError(null);
-      
+
       // Update each scene order item
-      const updatePromises = newOrder.map((item, index) => 
-        supabase
+      const updatePromises = newOrder.map((item, index) => {
+        let updateQuery = supabase
           .from('scene_order')
           .update({
             display_order: index + 1,
             updated_at: new Date().toISOString()
           })
-          .eq('scene_id', item.scene_id)
-      );
+          .eq('scene_id', item.scene_id);
+
+        if (targetInstanceId) {
+          updateQuery = updateQuery.eq('instance_id', targetInstanceId);
+        } else {
+          updateQuery = updateQuery.is('instance_id', null);
+        }
+
+        return updateQuery;
+      });
 
       const results = await Promise.all(updatePromises);
-      
+
       // Check for errors
       const hasError = results.some(result => result.error);
       if (hasError) {
         throw new Error('Failed to update some scene orders');
       }
-      
+
       // Update local state
       setSceneOrder(newOrder);
-      
+
       return true;
     } catch (err) {
       console.error('Error updating scene order:', err);
@@ -76,12 +92,12 @@ export const useSceneOrdering = () => {
     }
   };
 
-  const setCompletionScene = async (sceneId: number): Promise<boolean> => {
+  const setCompletionScene = async (sceneId: number, targetInstanceId: string | undefined = instanceId): Promise<boolean> => {
     try {
       setError(null);
-      
+
       // First, remove completion status from all scenes
-      const { error: clearError } = await supabase
+      let clearQuery = supabase
         .from('scene_order')
         .update({
           is_completion_scene: false,
@@ -89,10 +105,18 @@ export const useSceneOrdering = () => {
         })
         .eq('is_completion_scene', true);
 
+      if (targetInstanceId) {
+        clearQuery = clearQuery.eq('instance_id', targetInstanceId);
+      } else {
+        clearQuery = clearQuery.is('instance_id', null);
+      }
+
+      const { error: clearError } = await clearQuery;
+
       if (clearError) throw clearError;
 
       // Then set the new completion scene
-      const { error: setError } = await supabase
+      let setQuery = supabase
         .from('scene_order')
         .update({
           is_completion_scene: true,
@@ -100,16 +124,24 @@ export const useSceneOrdering = () => {
         })
         .eq('scene_id', sceneId);
 
-      if (setError) throw setError;
-      
+      if (targetInstanceId) {
+        setQuery = setQuery.eq('instance_id', targetInstanceId);
+      } else {
+        setQuery = setQuery.is('instance_id', null);
+      }
+
+      const { error: setCompletionError } = await setQuery;
+
+      if (setCompletionError) throw setCompletionError;
+
       // Update local state
-      setSceneOrder(prev => 
+      setSceneOrder(prev =>
         prev.map(item => ({
           ...item,
           is_completion_scene: item.scene_id === sceneId
         }))
       );
-      
+
       return true;
     } catch (err) {
       console.error('Error setting completion scene:', err);
@@ -118,17 +150,18 @@ export const useSceneOrdering = () => {
     }
   };
 
-  const addSceneToOrder = async (sceneId: number): Promise<boolean> => {
+  const addSceneToOrder = async (sceneId: number, targetInstanceId: string | undefined = instanceId): Promise<boolean> => {
     try {
       setError(null);
-      
+
       // Get the next display order
       const maxOrder = Math.max(...sceneOrder.map(item => item.display_order), 0);
       const newOrder = maxOrder + 1;
-      
+
       const { data, error } = await supabase
         .from('scene_order')
         .insert({
+          instance_id: targetInstanceId || null,
           scene_id: sceneId,
           display_order: newOrder,
           is_completion_scene: false,
@@ -138,10 +171,10 @@ export const useSceneOrdering = () => {
         .single();
 
       if (error) throw error;
-      
+
       // Update local state
       setSceneOrder(prev => [...prev, data]);
-      
+
       return true;
     } catch (err) {
       console.error('Error adding scene to order:', err);
@@ -150,20 +183,28 @@ export const useSceneOrdering = () => {
     }
   };
 
-  const removeSceneFromOrder = async (sceneId: number): Promise<boolean> => {
+  const removeSceneFromOrder = async (sceneId: number, targetInstanceId: string | undefined = instanceId): Promise<boolean> => {
     try {
       setError(null);
-      
-      const { error } = await supabase
+
+      let query = supabase
         .from('scene_order')
         .delete()
         .eq('scene_id', sceneId);
 
+      if (targetInstanceId) {
+        query = query.eq('instance_id', targetInstanceId);
+      } else {
+        query = query.is('instance_id', null);
+      }
+
+      const { error } = await query;
+
       if (error) throw error;
-      
+
       // Update local state
       setSceneOrder(prev => prev.filter(item => item.scene_id !== sceneId));
-      
+
       return true;
     } catch (err) {
       console.error('Error removing scene from order:', err);
@@ -172,32 +213,40 @@ export const useSceneOrdering = () => {
     }
   };
 
-  const reorderScenes = async (reorderedItems: SceneOrderItem[]): Promise<boolean> => {
+  const reorderScenes = async (reorderedItems: SceneOrderItem[], targetInstanceId: string | undefined = instanceId): Promise<boolean> => {
     try {
       setError(null);
-      
+
       // Update each item with new display order
-      const updatePromises = reorderedItems.map((item, index) => 
-        supabase
+      const updatePromises = reorderedItems.map((item, index) => {
+        let updateQuery = supabase
           .from('scene_order')
           .update({
             display_order: index + 1,
             updated_at: new Date().toISOString()
           })
-          .eq('scene_id', item.scene_id)
-      );
+          .eq('scene_id', item.scene_id);
+
+        if (targetInstanceId) {
+          updateQuery = updateQuery.eq('instance_id', targetInstanceId);
+        } else {
+          updateQuery = updateQuery.is('instance_id', null);
+        }
+
+        return updateQuery;
+      });
 
       const results = await Promise.all(updatePromises);
-      
+
       // Check for errors
       const hasError = results.some(result => result.error);
       if (hasError) {
         throw new Error('Failed to reorder scenes');
       }
-      
+
       // Update local state
       setSceneOrder(reorderedItems);
-      
+
       return true;
     } catch (err) {
       console.error('Error reordering scenes:', err);
@@ -227,14 +276,14 @@ export const useSceneOrdering = () => {
     return scene ? scene.is_active : false;
   };
 
-  const toggleSceneEnabled = async (sceneId: number): Promise<boolean> => {
+  const toggleSceneEnabled = async (sceneId: number, targetInstanceId: string | undefined = instanceId): Promise<boolean> => {
     try {
       setError(null);
-      
+
       const scene = getSceneById(sceneId);
       if (!scene) return false;
-      
-      const { error } = await supabase
+
+      let query = supabase
         .from('scene_order')
         .update({
           is_active: !scene.is_active,
@@ -242,17 +291,25 @@ export const useSceneOrdering = () => {
         })
         .eq('scene_id', sceneId);
 
+      if (targetInstanceId) {
+        query = query.eq('instance_id', targetInstanceId);
+      } else {
+        query = query.is('instance_id', null);
+      }
+
+      const { error } = await query;
+
       if (error) throw error;
-      
+
       // Update local state
-      setSceneOrder(prev => 
-        prev.map(item => 
-          item.scene_id === sceneId 
+      setSceneOrder(prev =>
+        prev.map(item =>
+          item.scene_id === sceneId
             ? { ...item, is_active: !item.is_active }
             : item
         )
       );
-      
+
       return true;
     } catch (err) {
       console.error('Error toggling scene enabled status:', err);

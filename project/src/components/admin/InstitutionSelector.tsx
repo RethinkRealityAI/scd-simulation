@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { SimulationInstance } from '../../hooks/useSimulationInstances';
-import { ChevronDown, Building2, Check, Plus, Settings } from 'lucide-react';
+import { ChevronDown, Building2, Check, Plus } from 'lucide-react';
 
 interface InstitutionSelectorProps {
   selectedInstanceId: string | null;
@@ -48,7 +48,7 @@ const InstitutionSelector: React.FC<InstitutionSelectorProps> = ({
         <div className="flex items-center gap-3 flex-1">
           {selectedInstance ? (
             <>
-              <div 
+              <div
                 className="w-3 h-3 rounded-full flex-shrink-0"
                 style={{ backgroundColor: selectedInstance.branding_config?.primary_color || '#3b82f6' }}
               />
@@ -97,6 +97,26 @@ const InstitutionSelector: React.FC<InstitutionSelectorProps> = ({
             Create New Institution
           </button>
 
+          {/* Base Select */}
+          <button
+            onClick={() => handleInstanceSelect(null as any)}
+            className={`w-full px-4 py-3 text-left hover:bg-gray-50 border-b border-gray-100 flex items-center gap-3 transition-colors ${selectedInstanceId === null ? 'bg-blue-50 border-l-4 border-l-blue-500 pl-3' : 'border-l-4 border-l-transparent pl-3'
+              }`}
+          >
+            <div className="w-3 h-3 rounded-full flex-shrink-0 bg-indigo-500" />
+            <div className="flex-1 min-w-0">
+              <div className="font-medium text-gray-900 truncate">
+                Base Configuration
+              </div>
+              <div className="text-sm text-gray-500 truncate">
+                Global Default Application
+              </div>
+            </div>
+            {selectedInstanceId === null && (
+              <Check className="w-4 h-4 text-blue-600 flex-shrink-0" />
+            )}
+          </button>
+
           {/* Institution List */}
           <div className="max-h-64 overflow-y-auto">
             {loading ? (
@@ -121,11 +141,10 @@ const InstitutionSelector: React.FC<InstitutionSelectorProps> = ({
                   <button
                     key={instance.id}
                     onClick={() => handleInstanceSelect(instance.id)}
-                    className={`w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 transition-colors ${
-                      selectedInstanceId === instance.id ? 'bg-blue-50 border-r-2 border-blue-500' : ''
-                    }`}
+                    className={`w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 transition-colors ${selectedInstanceId === instance.id ? 'bg-blue-50 border-r-2 border-blue-500' : ''
+                      }`}
                   >
-                    <div 
+                    <div
                       className="w-3 h-3 rounded-full flex-shrink-0"
                       style={{ backgroundColor: instance.branding_config?.primary_color || '#3b82f6' }}
                     />
@@ -155,8 +174,8 @@ const InstitutionSelector: React.FC<InstitutionSelectorProps> = ({
 
       {/* Overlay to close dropdown */}
       {isOpen && (
-        <div 
-          className="fixed inset-0 z-40" 
+        <div
+          className="fixed inset-0 z-40"
           onClick={() => setIsOpen(false)}
         />
       )}

@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  DoorOpen, 
-  Save, 
-  Eye, 
-  Edit, 
-  Image, 
-  Type, 
-  Palette, 
-  FileText, 
-  Users, 
+import {
+  DoorOpen,
+  Save,
+  Eye,
+  Edit,
+  Image,
+  Type,
+  Palette,
+  FileText,
+  Users,
   Database,
   Download,
   Upload,
@@ -21,18 +21,19 @@ import WelcomeScreenPreview from '../WelcomeScreenPreview';
 
 interface EnhancedWelcomeScreenEditorProps {
   onMessage?: (msg: { type: 'success' | 'error'; text: string }) => void;
+  instanceId?: string;
 }
 
-const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = ({ onMessage }) => {
-  const { 
-    config: initialConfig, 
-    loading, 
-    saveWelcomeConfiguration, 
-    exportWelcomeConfiguration,
-    importWelcomeConfiguration,
-    resetToDefaults 
-  } = useWelcomeConfig();
-  
+const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = ({ onMessage, instanceId }) => {
+  const {
+    config: initialConfig,
+    loading,
+    saveWelcomeConfig: saveWelcomeConfiguration,
+    exportConfig: exportWelcomeConfiguration,
+    importConfig: importWelcomeConfiguration,
+    resetToDefault: resetToDefaults
+  } = useWelcomeConfig(instanceId);
+
   const [config, setConfig] = useState<WelcomeConfiguration>(initialConfig);
   const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
   const [activeSection, setActiveSection] = useState<'visual' | 'content' | 'form' | 'modal'>('visual');
@@ -52,12 +53,12 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
     const keys = path.split('.');
     const newConfig = { ...config };
     let current: any = newConfig;
-    
+
     for (let i = 0; i < keys.length - 1; i++) {
       current[keys[i]] = { ...current[keys[i]] };
       current = current[keys[i]];
     }
-    
+
     current[keys[keys.length - 1]] = value;
     setConfig(newConfig);
     setHasChanges(true);
@@ -157,29 +158,27 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
           <div className="flex gap-2">
             <button
               onClick={() => setActiveTab('edit')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
-                activeTab === 'edit'
-                  ? 'bg-blue-500 text-white shadow-sm'
-                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'edit'
+                ? 'bg-blue-500 text-white shadow-sm'
+                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}
             >
               <Edit className="w-4 h-4" />
               Edit Configuration
             </button>
             <button
               onClick={() => setActiveTab('preview')}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${
-                activeTab === 'preview'
-                  ? 'bg-blue-500 text-white shadow-sm'
-                  : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
-              }`}
+              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors flex items-center gap-2 ${activeTab === 'preview'
+                ? 'bg-blue-500 text-white shadow-sm'
+                : 'bg-white text-gray-700 hover:bg-gray-100 border border-gray-200'
+                }`}
             >
               <Eye className="w-4 h-4" />
               Live Preview
             </button>
           </div>
         </div>
-        
+
         {/* Quick Actions */}
         <div className="flex items-center gap-2">
           <button
@@ -216,44 +215,40 @@ const EnhancedWelcomeScreenEditor: React.FC<EnhancedWelcomeScreenEditorProps> = 
               <div className="space-y-1">
                 <button
                   onClick={() => setActiveSection('visual')}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${
-                    activeSection === 'visual'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                  }`}
+                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${activeSection === 'visual'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    }`}
                 >
                   <Image className="w-4 h-4" />
                   <span className="font-medium">Visual Styling</span>
                 </button>
                 <button
                   onClick={() => setActiveSection('content')}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${
-                    activeSection === 'content'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                  }`}
+                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${activeSection === 'content'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    }`}
                 >
                   <Type className="w-4 h-4" />
                   <span className="font-medium">Content & Text</span>
                 </button>
                 <button
                   onClick={() => setActiveSection('form')}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${
-                    activeSection === 'form'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                  }`}
+                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${activeSection === 'form'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    }`}
                 >
                   <Users className="w-4 h-4" />
                   <span className="font-medium">Form Fields</span>
                 </button>
                 <button
                   onClick={() => setActiveSection('modal')}
-                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${
-                    activeSection === 'modal'
-                      ? 'bg-blue-500 text-white'
-                      : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
-                  }`}
+                  className={`w-full text-left px-3 py-2 rounded-lg transition-colors flex items-center gap-2 text-sm ${activeSection === 'modal'
+                    ? 'bg-blue-500 text-white'
+                    : 'bg-gray-50 text-gray-700 hover:bg-gray-100'
+                    }`}
                 >
                   <Database className="w-4 h-4" />
                   <span className="font-medium">Welcome Modal</span>

@@ -67,7 +67,7 @@ export interface AnalyticsSummary {
   };
 }
 
-export function useAnalytics() {
+export function useAnalytics(instanceId?: string) {
   const [analyticsData, setAnalyticsData] = useState<AnalyticsEntry[]>([]);
   const [summary, setSummary] = useState<AnalyticsSummary | null>(null);
   const [loading, setLoading] = useState(false);
@@ -76,22 +76,29 @@ export function useAnalytics() {
   const fetchAnalytics = async (limit: number = 100) => {
     setLoading(true);
     setError(null);
-    
+
     console.log('Fetching analytics from session_data table...');
-    
+
     try {
-      const { data, error: fetchError } = await supabase
-        .from('session_data')
+      const targetTable = instanceId ? 'instance_session_data' : 'session_data';
+      let query = supabase
+        .from(targetTable)
         .select('*')
         .order('submission_timestamp', { ascending: false })
         .limit(limit);
 
+      if (instanceId) {
+        query = query.eq('instance_id', instanceId);
+      }
+
+      const { data, error: fetchError } = await query;
+
       if (fetchError) {
-        console.error('Error fetching from session_data:', fetchError);
+        console.error(`Error fetching from ${targetTable}:`, fetchError);
         throw fetchError;
       }
 
-      console.log('Fetched data from session_data:', data);
+      console.log(`Fetched data from ${targetTable}:`, data);
 
       const formattedData: AnalyticsEntry[] = data?.map(entry => ({
         id: entry.id,
@@ -106,7 +113,7 @@ export function useAnalytics() {
       })) || [];
 
       setAnalyticsData(formattedData);
-      
+
       // Calculate summary statistics
       if (formattedData.length > 0) {
         const totalUsers = formattedData.length;
@@ -156,8 +163,9 @@ export function useAnalytics() {
 
   const insertAnalyticsEntry = async (data: Omit<AnalyticsEntry, 'id' | 'submission_timestamp'>) => {
     try {
+      const targetTable = instanceId ? 'instance_session_data' : 'session_data';
       const { error: insertError } = await supabase
-        .from('session_data')
+        .from(targetTable)
         .insert({
           session_id: data.session_id,
           user_demographics: data.user_demographics,
@@ -165,7 +173,8 @@ export function useAnalytics() {
           category_scores: data.category_scores,
           final_score: data.final_score,
           completion_time: data.completion_time,
-          completed_scenes: data.completed_scenes
+          completed_scenes: data.completed_scenes,
+          instance_id: instanceId || null
         });
 
       if (insertError) {
@@ -185,14 +194,21 @@ export function useAnalytics() {
   const getAnalyticsByDateRange = async (startDate: Date, endDate: Date) => {
     setLoading(true);
     setError(null);
-    
+
     try {
-      const { data, error: fetchError } = await supabase
-        .from('session_data')
+      const targetTable = instanceId ? 'instance_session_data' : 'session_data';
+      let query = supabase
+        .from(targetTable)
         .select('*')
         .gte('submission_timestamp', startDate.toISOString())
         .lte('submission_timestamp', endDate.toISOString())
         .order('submission_timestamp', { ascending: false });
+
+      if (instanceId) {
+        query = query.eq('instance_id', instanceId);
+      }
+
+      const { data, error: fetchError } = await query;
 
       if (fetchError) {
         throw fetchError;
@@ -212,7 +228,7 @@ export function useAnalytics() {
     if (!analyticsData.length) return {};
 
     const educationGroups = analyticsData.reduce((acc, entry) => {
-      const level = entry.user_demographics.educationLevel;
+      const level = entry.user_demographics?.educationLevel || 'Unknown';
       if (!acc[level]) {
         acc[level] = [];
       }
@@ -221,7 +237,7 @@ export function useAnalytics() {
     }, {} as Record<string, AnalyticsEntry[]>);
 
     const result: Record<string, { averageScore: number; count: number }> = {};
-    
+
     Object.entries(educationGroups).forEach(([level, entries]) => {
       result[level] = {
         averageScore: Math.round(
@@ -238,7 +254,7 @@ export function useAnalytics() {
     if (!analyticsData.length) return {};
 
     const ageGroups = analyticsData.reduce((acc, entry) => {
-      const age = entry.user_demographics.age;
+      const age = entry.user_demographics?.age || 'Unknown';
       if (!acc[age]) {
         acc[age] = [];
       }
@@ -247,7 +263,7 @@ export function useAnalytics() {
     }, {} as Record<string, AnalyticsEntry[]>);
 
     const result: Record<string, { averageScore: number; count: number }> = {};
-    
+
     Object.entries(ageGroups).forEach(([age, entries]) => {
       result[age] = {
         averageScore: Math.round(
@@ -260,10 +276,9 @@ export function useAnalytics() {
     return result;
   };
 
-  // Auto-fetch analytics on hook initialization
   useEffect(() => {
     fetchAnalytics();
-  }, []);
+  }, [instanceId]);
 
   return {
     analyticsData,

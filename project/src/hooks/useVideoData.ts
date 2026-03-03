@@ -13,34 +13,42 @@ interface VideoData {
   updated_at: string;
 }
 
-export const useVideoData = () => {
+export const useVideoData = (instanceId?: string) => {
   const [videos, setVideos] = useState<VideoData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchVideos();
-  }, []);
+    fetchVideos(instanceId);
+  }, [instanceId]);
 
-  const fetchVideos = async () => {
+  const fetchVideos = async (instanceId?: string) => {
     try {
       setLoading(true);
       setError(null);
-      
+
       console.log('Fetching videos from database...');
       // Fetch videos from database
-      const { data, error } = await supabase
+      let query = supabase
         .from('simulation_videos')
         .select('*')
         .order('scene_id');
 
+      if (instanceId) {
+        query = query.eq('instance_id', instanceId);
+      } else {
+        query = query.is('instance_id', null);
+      }
+
+      const { data, error } = await query;
+
       if (error) {
         throw error;
       }
-      
+
       console.log('Videos fetched from database:', data?.length || 0, 'videos');
       console.log('Video details:', data?.map(v => ({ scene_id: v.scene_id, title: v.title, has_url: !!v.video_url })));
-      
+
       setVideos(data || []);
     } catch (err) {
       console.error('Error fetching videos:', err);
@@ -50,34 +58,34 @@ export const useVideoData = () => {
     }
   };
 
-  const uploadVideo = async (file: File, sceneId: number, title: string, description: string) => {
+  const uploadVideo = async (file: File, sceneId: number, title: string, description: string, instanceId?: string) => {
     try {
       setError(null);
-      
+
       console.log('Starting upload validation:', { fileName: file.name, fileSize: file.size, fileType: file.type, sceneId });
-      
+
       // Validate file size (100MB limit)
       if (file.size > 52428800) { // 50MB
         const errorMsg = `File size is ${(file.size / 1048576).toFixed(2)}MB. Maximum size is 50MB. Please compress your video.`;
         console.error(errorMsg);
         throw new Error(errorMsg);
       }
-      
+
       // Validate file type
       if (!file.type.startsWith('video/')) {
         const errorMsg = `Invalid file type: ${file.type}. Please select a valid video file (MP4, MOV, WebM, etc.)`;
         console.error(errorMsg);
         throw new Error(errorMsg);
       }
-      
+
       // Generate unique filename
       const fileExt = file.name.split('.').pop();
       const fileName = `scene-${sceneId}-${Date.now()}.${fileExt}`;
-      
+
       console.log('✓ Validation passed. Starting upload:', { fileName, fileSize: `${(file.size / 1048576).toFixed(2)}MB`, sceneId });
-      
+
       // Upload video file to storage
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('simulation-videos')
         .upload(fileName, file, {
           cacheControl: '3600',
@@ -89,7 +97,7 @@ export const useVideoData = () => {
         throw new Error(`Storage upload failed: ${uploadError.message}. Check browser console for details.`);
       }
 
-      console.log('✓ File uploaded to storage successfully:', uploadData);
+      console.log('✓ File uploaded to storage successfully');
 
       // Get public URL
       const { data: { publicUrl } } = supabase.storage
@@ -102,6 +110,7 @@ export const useVideoData = () => {
       const { data: insertData, error: insertError } = await supabase
         .from('simulation_videos')
         .insert({
+          instance_id: instanceId || null,
           scene_id: sceneId,
           title,
           description,
@@ -112,10 +121,10 @@ export const useVideoData = () => {
 
       if (insertError) {
         console.log('⚠️ Insert failed (may already exist), attempting update:', insertError.code);
-        
+
         // If insert fails due to unique constraint, try update
         if (insertError.code === '23505') {
-          const { data: updateData, error: updateError } = await supabase
+          let updateQuery = supabase
             .from('simulation_videos')
             .update({
               title,
@@ -123,9 +132,15 @@ export const useVideoData = () => {
               video_url: publicUrl,
               updated_at: new Date().toISOString()
             })
-            .eq('scene_id', sceneId)
-            .select()
-            .single();
+            .eq('scene_id', sceneId);
+
+          if (instanceId) {
+            updateQuery = updateQuery.eq('instance_id', instanceId);
+          } else {
+            updateQuery = updateQuery.is('instance_id', null);
+          }
+
+          const { data: updateData, error: updateError } = await updateQuery.select().single();
 
           if (updateError) {
             console.error('❌ Database update failed:', updateError);
@@ -137,7 +152,7 @@ export const useVideoData = () => {
           }
 
           console.log('✓ Video record updated successfully in database:', updateData);
-          await fetchVideos();
+          await fetchVideos(instanceId);
           return updateData;
         } else {
           console.error('❌ Database insert failed:', insertError);
@@ -150,7 +165,7 @@ export const useVideoData = () => {
       }
 
       console.log('✓ Video record inserted successfully in database:', insertData);
-      await fetchVideos();
+      await fetchVideos(instanceId);
       return insertData;
     } catch (err) {
       console.error('❌ Upload process error:', err);
@@ -160,18 +175,84 @@ export const useVideoData = () => {
     }
   };
 
-  const deleteVideo = async (sceneId: number) => {
+  const saveStreamVideo = async (sceneId: number, streamUrl: string, title: string, description: string, instanceId?: string) => {
     try {
       setError(null);
-      
+
+      // Try to insert new record first
+      const { data: insertData, error: insertError } = await supabase
+        .from('simulation_videos')
+        .insert({
+          instance_id: instanceId || null,
+          scene_id: sceneId,
+          title,
+          description,
+          video_url: streamUrl,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        // If insert fails due to unique constraint, try update
+        if (insertError.code === '23505') {
+          let updateQuery = supabase
+            .from('simulation_videos')
+            .update({
+              title,
+              description,
+              video_url: streamUrl,
+              updated_at: new Date().toISOString()
+            })
+            .eq('scene_id', sceneId);
+
+          if (instanceId) {
+            updateQuery = updateQuery.eq('instance_id', instanceId);
+          } else {
+            updateQuery = updateQuery.is('instance_id', null);
+          }
+
+          const { data: updateData, error: updateError } = await updateQuery.select().single();
+
+          if (updateError) {
+            throw new Error(`Database update failed: ${updateError.message}`);
+          }
+
+          await fetchVideos(instanceId);
+          return updateData;
+        } else {
+          throw new Error(`Database insert failed: ${insertError.message}`);
+        }
+      }
+
+      await fetchVideos(instanceId);
+      return insertData;
+    } catch (err) {
+      console.error('Error saving stream video:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to save stream video';
+      setError(errorMessage);
+      throw new Error(errorMessage);
+    }
+  };
+
+  const deleteVideo = async (sceneId: number, instanceId?: string) => {
+    try {
+      setError(null);
+
       console.log('Starting delete process for scene:', sceneId);
-      
+
       // Get the video record first
-      const { data: video, error: fetchError } = await supabase
+      let fetchQuery = supabase
         .from('simulation_videos')
         .select('*')
-        .eq('scene_id', sceneId)
-        .single();
+        .eq('scene_id', sceneId);
+
+      if (instanceId) {
+        fetchQuery = fetchQuery.eq('instance_id', instanceId);
+      } else {
+        fetchQuery = fetchQuery.is('instance_id', null);
+      }
+
+      const { data: video, error: fetchError } = await fetchQuery.single();
 
       if (fetchError) {
         console.error('Fetch error:', fetchError);
@@ -184,15 +265,15 @@ export const useVideoData = () => {
         // Extract filename from URL
         const urlParts = video.video_url.split('/');
         const fileName = urlParts[urlParts.length - 1];
-        
+
         console.log('Attempting to delete file:', fileName);
-        
+
         if (fileName && fileName.includes('scene-')) {
           // Delete from storage
           const { error: storageError } = await supabase.storage
             .from('simulation-videos')
             .remove([fileName]);
-            
+
           if (storageError) {
             console.warn('Storage deletion warning:', storageError);
           } else {
@@ -202,10 +283,18 @@ export const useVideoData = () => {
       }
 
       // Delete from database
-      const { error: deleteError } = await supabase
+      let deleteQuery = supabase
         .from('simulation_videos')
         .delete()
         .eq('scene_id', sceneId);
+
+      if (instanceId) {
+        deleteQuery = deleteQuery.eq('instance_id', instanceId);
+      } else {
+        deleteQuery = deleteQuery.is('instance_id', null);
+      }
+
+      const { error: deleteError } = await deleteQuery;
 
       if (deleteError) {
         console.error('Database delete error:', deleteError);
@@ -213,9 +302,9 @@ export const useVideoData = () => {
       }
 
       console.log('Database record deleted successfully');
-      
+
       // Refresh videos list
-      await fetchVideos();
+      await fetchVideos(instanceId);
     } catch (err) {
       console.error('Delete process error:', err);
       const errorMessage = err instanceof Error ? err.message : 'Failed to delete video';
@@ -225,24 +314,25 @@ export const useVideoData = () => {
   };
 
   const updateVideo = async (
-    videoId: string, 
-    title: string, 
-    description: string, 
+    videoId: string,
+    title: string,
+    description: string,
     posterFile?: File,
-    videoFile?: File
+    videoFile?: File,
+    instanceId?: string
   ) => {
     try {
       setError(null);
-      
+
       let posterUrl = '';
       let videoUrl = '';
-      
+
       // Upload new poster if provided
       if (posterFile) {
         const fileExt = posterFile.name.split('.').pop();
         const fileName = `poster-${videoId}-${Date.now()}.${fileExt}`;
-        
-        const { data: uploadData, error: uploadError } = await supabase.storage
+
+        const { error: uploadError } = await supabase.storage
           .from('simulation-videos')
           .upload(fileName, posterFile, {
             cacheControl: '3600',
@@ -259,23 +349,23 @@ export const useVideoData = () => {
 
         posterUrl = publicUrl;
       }
-      
+
       // Upload new video if provided
       if (videoFile) {
         // Validate file size (50MB limit)
         if (videoFile.size > 52428800) {
           throw new Error('Video file size must be less than 50MB');
         }
-        
+
         // Validate file type
         if (!videoFile.type.startsWith('video/')) {
           throw new Error('Please select a valid video file');
         }
-        
+
         const fileExt = videoFile.name.split('.').pop();
         const fileName = `video-${videoId}-${Date.now()}.${fileExt}`;
-        
-        const { data: uploadData, error: uploadError } = await supabase.storage
+
+        const { error: uploadError } = await supabase.storage
           .from('simulation-videos')
           .upload(fileName, videoFile, {
             cacheControl: '3600',
@@ -303,7 +393,7 @@ export const useVideoData = () => {
       if (posterUrl) {
         updateData.poster_url = posterUrl;
       }
-      
+
       if (videoUrl) {
         updateData.video_url = videoUrl;
       }
@@ -319,7 +409,7 @@ export const useVideoData = () => {
         throw new Error(`Database update error: ${updateError.message}`);
       }
 
-      await fetchVideos();
+      await fetchVideos(instanceId);
       return data;
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to update video';
@@ -333,6 +423,7 @@ export const useVideoData = () => {
     loading,
     error,
     uploadVideo,
+    saveStreamVideo,
     updateVideo,
     deleteVideo,
     refetch: fetchVideos,

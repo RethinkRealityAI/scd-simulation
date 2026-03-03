@@ -6,13 +6,14 @@ interface VideoPlayerProps {
   onVideoEnd?: () => void;
   poster?: string;
   autoPlay?: boolean;
+  className?: string;
 }
 
-const VideoPlayer: React.FC<VideoPlayerProps> = ({ 
-  videoUrl, 
-  onVideoEnd, 
+const VideoPlayer: React.FC<VideoPlayerProps> = ({
+  videoUrl,
+  onVideoEnd,
   poster,
-  autoPlay = false 
+  autoPlay = false
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -96,7 +97,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   return (
-    <div 
+    <div
       className="relative group bg-black w-full h-full"
       onMouseEnter={() => setShowControls(true)}
       onMouseLeave={() => setShowControls(false)}
@@ -156,7 +157,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
               >
                 <RotateCcw className="w-3 h-3 text-white" />
               </button>
-              
+
               <button
                 onClick={toggleMute}
                 className="p-1.5 rounded-lg bg-white/20 hover:bg-white/30 transition-all duration-200"

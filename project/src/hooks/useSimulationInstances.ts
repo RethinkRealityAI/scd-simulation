@@ -62,7 +62,6 @@ export interface InstanceSessionData {
   completion_time: number;
   completed_scenes: number[];
   start_time: string;
-  completion_time: string;
   submission_timestamp: string;
   webhook_sent: boolean;
   webhook_attempts: number;
@@ -103,9 +102,10 @@ export function useSimulationInstances() {
         instanceData.institution_id = generatedId;
       }
 
-      // Set created_by to 'admin' if not provided (for anonymous admin access)
+      // Set created_by if not provided
       if (!instanceData.created_by) {
-        instanceData.created_by = 'admin';
+        const { data: { session } } = await supabase.auth.getSession();
+        instanceData.created_by = session?.user?.id || '00000000-0000-0000-0000-000000000000';
       }
 
       const { data, error } = await supabase
@@ -115,7 +115,7 @@ export function useSimulationInstances() {
         .single();
 
       if (error) throw error;
-      
+
       // Create a default welcome configuration for the new instance
       try {
         const defaultWelcomeConfig = {
@@ -254,7 +254,7 @@ export function useSimulationInstances() {
         console.warn('Failed to create default welcome configuration:', welcomeError);
         // Don't fail the instance creation if welcome config fails
       }
-      
+
       setInstances(prev => [data, ...prev]);
       return data;
     } catch (err) {
@@ -273,8 +273,8 @@ export function useSimulationInstances() {
         .single();
 
       if (error) throw error;
-      
-      setInstances(prev => prev.map(instance => 
+
+      setInstances(prev => prev.map(instance =>
         instance.id === id ? data : instance
       ));
       return data;
@@ -292,7 +292,7 @@ export function useSimulationInstances() {
         .eq('id', id);
 
       if (error) throw error;
-      
+
       setInstances(prev => prev.filter(instance => instance.id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete instance');
@@ -370,7 +370,7 @@ export function useAccessTokens(instanceId?: string) {
         .single();
 
       if (error) throw error;
-      
+
       setTokens(prev => [data, ...prev]);
       return data;
     } catch (err) {
@@ -389,8 +389,8 @@ export function useAccessTokens(instanceId?: string) {
         .single();
 
       if (error) throw error;
-      
-      setTokens(prev => prev.map(token => 
+
+      setTokens(prev => prev.map(token =>
         token.id === id ? data : token
       ));
       return data;
@@ -408,7 +408,7 @@ export function useAccessTokens(instanceId?: string) {
         .eq('id', id);
 
       if (error) throw error;
-      
+
       setTokens(prev => prev.filter(token => token.id !== id));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete token');
@@ -489,7 +489,7 @@ export function useInstanceSessionData(instanceId?: string) {
         .single();
 
       if (error) throw error;
-      
+
       setSessionData(prev => [result, ...prev]);
       return result;
     } catch (err) {
@@ -513,8 +513,8 @@ export function useInstanceSessionData(instanceId?: string) {
         .single();
 
       if (error) throw error;
-      
-      setSessionData(prev => prev.map(session => 
+
+      setSessionData(prev => prev.map(session =>
         session.id === id ? data : session
       ));
       return data;

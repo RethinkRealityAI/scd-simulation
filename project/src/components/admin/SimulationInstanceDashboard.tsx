@@ -1,14 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Plus, 
-  Building2, 
-  Link, 
-  QrCode, 
-  Settings, 
-  BarChart3, 
-  Eye, 
-  Edit, 
-  Trash2, 
+import React, { useState } from 'react';
+import {
+  Plus,
+  Building2,
+  Link,
+  QrCode,
+  Settings,
+  BarChart3,
   Copy,
   ExternalLink,
   RefreshCw,
@@ -16,7 +13,7 @@ import {
   AlertCircle,
   Clock
 } from 'lucide-react';
-import { useSimulationInstances, useAccessTokens, SimulationInstance, AccessToken } from '../../hooks/useSimulationInstances';
+import { useSimulationInstances, SimulationInstance } from '../../hooks/useSimulationInstances';
 import CreateInstanceModal from './CreateInstanceModal';
 import InstanceSettingsModal from './InstanceSettingsModal';
 import InstanceAnalyticsModal from './InstanceAnalyticsModal';
@@ -26,21 +23,51 @@ interface SimulationInstanceDashboardProps {
 }
 
 const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = ({ onClose }) => {
-  const { 
-    instances, 
-    loading, 
-    error, 
-    fetchInstances, 
-    createInstance, 
-    updateInstance, 
-    deleteInstance 
+  const {
+    instances,
+    loading,
+    error,
+    fetchInstances,
+    createInstance,
+    updateInstance
   } = useSimulationInstances();
-  
+
   const [selectedInstance, setSelectedInstance] = useState<SimulationInstance | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showAnalyticsModal, setShowAnalyticsModal] = useState(false);
   const [activeTab, setActiveTab] = useState<'instances' | 'tokens'>('instances');
+
+  const baseInstance: SimulationInstance = {
+    id: 'base-instance',
+    name: 'Base Application Default',
+    institution_name: 'Root Configuration',
+    institution_id: 'default',
+    description: 'The default configuration for the main application when no specific instance is selected.',
+    is_active: true,
+    requires_approval: false,
+    webhook_retry_count: 0,
+    webhook_timeout_seconds: 30,
+    session_timeout_minutes: 60,
+    created_by: 'system',
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    branding_config: {
+      primary_color: '#000000',
+      secondary_color: '#000000',
+      accent_color: '#000000',
+      background_color: '#ffffff',
+      text_color: '#000000',
+      font_family: 'Inter',
+    },
+    content_config: {
+      scene_order: [],
+      custom_scenes: [],
+      disabled_features: [],
+    }
+  };
+
+  const allInstances = [baseInstance, ...instances];
 
   const handleCreateInstance = async (instanceData: Partial<SimulationInstance>) => {
     try {
@@ -58,16 +85,6 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
       setSelectedInstance(null);
     } catch (error) {
       console.error('Failed to update instance:', error);
-    }
-  };
-
-  const handleDeleteInstance = async (id: string) => {
-    if (window.confirm('Are you sure you want to delete this simulation instance? This action cannot be undone.')) {
-      try {
-        await deleteInstance(id);
-      } catch (error) {
-        console.error('Failed to delete instance:', error);
-      }
     }
   };
 
@@ -100,7 +117,7 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
         <div className="text-center">
           <AlertCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <p className="text-red-600 mb-4">{error}</p>
-          <button 
+          <button
             onClick={fetchInstances}
             className="px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600"
           >
@@ -123,7 +140,7 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
             <p className="text-sm text-gray-600">Manage institutional simulation instances</p>
           </div>
         </div>
-        
+
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowCreateModal(true)}
@@ -132,7 +149,7 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
             <Plus className="w-4 h-4" />
             Create Instance
           </button>
-          
+
           {onClose && (
             <button
               onClick={onClose}
@@ -157,7 +174,7 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-green-100 rounded-lg">
@@ -171,7 +188,7 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-purple-100 rounded-lg">
@@ -185,7 +202,7 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
             </div>
           </div>
         </div>
-        
+
         <div className="bg-white p-4 rounded-lg border border-gray-200">
           <div className="flex items-center gap-3">
             <div className="p-2 bg-orange-100 rounded-lg">
@@ -205,22 +222,20 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
       <div className="flex border-b border-gray-200">
         <button
           onClick={() => setActiveTab('instances')}
-          className={`px-4 py-3 font-medium text-sm transition-colors ${
-            activeTab === 'instances'
-              ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
+          className={`px-4 py-3 font-medium text-sm transition-colors ${activeTab === 'instances'
+            ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+            : 'text-gray-600 hover:text-gray-900'
+            }`}
         >
           <Building2 className="w-4 h-4 mr-2 inline" />
           Instances ({instances.length})
         </button>
         <button
           onClick={() => setActiveTab('tokens')}
-          className={`px-4 py-3 font-medium text-sm transition-colors ${
-            activeTab === 'tokens'
-              ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
-              : 'text-gray-600 hover:text-gray-900'
-          }`}
+          className={`px-4 py-3 font-medium text-sm transition-colors ${activeTab === 'tokens'
+            ? 'text-blue-600 border-b-2 border-blue-600 bg-blue-50'
+            : 'text-gray-600 hover:text-gray-900'
+            }`}
         >
           <Link className="w-4 h-4 mr-2 inline" />
           Access Tokens
@@ -245,7 +260,7 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {instances.map((instance) => (
+                {allInstances.map((instance) => (
                   <div key={instance.id} className="bg-white rounded-lg border border-gray-200 p-6 hover:shadow-md transition-shadow">
                     <div className="flex items-start justify-between mb-4">
                       <div className="flex-1">
@@ -267,11 +282,10 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
                     )}
 
                     <div className="flex items-center gap-2 mb-4">
-                      <span className={`px-2 py-1 text-xs rounded-full ${
-                        instance.is_active 
-                          ? 'bg-green-100 text-green-800' 
-                          : 'bg-red-100 text-red-800'
-                      }`}>
+                      <span className={`px-2 py-1 text-xs rounded-full ${instance.is_active
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                        }`}>
                         {instance.is_active ? 'Active' : 'Inactive'}
                       </span>
                       {instance.webhook_url && (
@@ -282,17 +296,19 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
                     </div>
 
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => {
-                          setSelectedInstance(instance);
-                          setShowSettingsModal(true);
-                        }}
-                        className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-2"
-                      >
-                        <Settings className="w-4 h-4" />
-                        Settings
-                      </button>
-                      
+                      {instance.id !== 'base-instance' && (
+                        <button
+                          onClick={() => {
+                            setSelectedInstance(instance);
+                            setShowSettingsModal(true);
+                          }}
+                          className="flex-1 px-3 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 flex items-center justify-center gap-2"
+                        >
+                          <Settings className="w-4 h-4" />
+                          Settings
+                        </button>
+                      )}
+
                       <button
                         onClick={() => {
                           setSelectedInstance(instance);
@@ -305,33 +321,47 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
                       </button>
                     </div>
 
-                    <div className="mt-4 pt-4 border-t border-gray-200">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <Link className="w-4 h-4 text-gray-500" />
-                          <span className="text-sm text-gray-600">Share Link</span>
+                    {instance.id !== 'base-instance' && (
+                      <div className="mt-4 pt-4 border-t border-gray-200">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Link className="w-4 h-4 text-gray-500" />
+                            <span className="text-sm text-gray-600">Share Link</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <a
+                              href={generateShareableLink(instance.institution_id)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-xs font-medium flex items-center gap-1 shadow-sm transition-colors"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              Preview Instance
+                            </a>
+                            <button
+                              onClick={() => copyToClipboard(generateShareableLink(instance.institution_id))}
+                              className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-700 transition-colors"
+                              title="Copy Link"
+                            >
+                              <Copy className="w-4 h-4" />
+                            </button>
+                          </div>
                         </div>
-                        <button
-                          onClick={() => copyToClipboard(generateShareableLink(instance.institution_id))}
-                          className="p-1 hover:bg-gray-100 rounded"
-                        >
-                          <Copy className="w-4 h-4 text-gray-500" />
-                        </button>
+
+                        <div className="mt-2 flex items-center gap-2">
+                          <QrCode className="w-4 h-4 text-gray-500" />
+                          <span className="text-sm text-gray-600">QR Code</span>
+                          <a
+                            href={generateQRCode(instance.institution_id)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 hover:bg-gray-100 rounded"
+                          >
+                            <ExternalLink className="w-4 h-4 text-gray-500" />
+                          </a>
+                        </div>
                       </div>
-                      
-                      <div className="mt-2 flex items-center gap-2">
-                        <QrCode className="w-4 h-4 text-gray-500" />
-                        <span className="text-sm text-gray-600">QR Code</span>
-                        <a
-                          href={generateQRCode(instance.institution_id)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="p-1 hover:bg-gray-100 rounded"
-                        >
-                          <ExternalLink className="w-4 h-4 text-gray-500" />
-                        </a>
-                      </div>
-                    </div>
+                    )}
                   </div>
                 ))}
               </div>

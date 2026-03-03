@@ -1,110 +1,52 @@
-import React, { useState, useEffect } from 'react';
-import { X, Download, RefreshCw, TrendingUp, Users, Clock, Award, BarChart3, Calendar, Filter } from 'lucide-react';
+import React, { useState } from 'react';
+import { X, Download, RefreshCw, TrendingUp, Users, Clock, Award, Filter } from 'lucide-react';
 import { SimulationInstance } from '../../hooks/useSimulationInstances';
+import { useAnalytics } from '../../hooks/useAnalytics';
 
 interface InstanceAnalyticsModalProps {
   instance: SimulationInstance;
   onClose: () => void;
 }
 
-interface AnalyticsData {
-  totalSessions: number;
-  averageScore: number;
-  averageCompletionTime: number;
-  completionRate: number;
-  categoryScores: {
-    [category: string]: {
-      average: number;
-      count: number;
-    };
-  };
-  dailyStats: {
-    date: string;
-    sessions: number;
-    averageScore: number;
-  }[];
-  demographics: {
-    educationLevel: { [key: string]: number };
-    ageGroup: { [key: string]: number };
-  };
-}
+
 
 const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instance, onClose }) => {
-  const [analytics, setAnalytics] = useState<AnalyticsData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<'7d' | '30d' | '90d' | 'all'>('30d');
   const [activeTab, setActiveTab] = useState<'overview' | 'performance' | 'demographics' | 'trends'>('overview');
 
-  useEffect(() => {
-    loadAnalytics();
-  }, [instance.id, dateRange]);
+  // Use the useAnalytics hook with the specific instanceId
+  const analyticsInstanceId = instance.id === 'base-instance' ? undefined : instance.id;
+  const {
+    analyticsData,
+    summary,
+    loading,
+    error,
+    getPerformanceByEducationLevel,
+    getPerformanceByAgeGroup,
+    refetch
+  } = useAnalytics(analyticsInstanceId);
 
-  const loadAnalytics = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // Mock data for now - replace with actual API call
-      const mockData: AnalyticsData = {
-        totalSessions: 156,
-        averageScore: 78.5,
-        averageCompletionTime: 24.3,
-        completionRate: 89.2,
-        categoryScores: {
-          'Clinical Knowledge': { average: 82.1, count: 156 },
-          'Critical Thinking': { average: 75.3, count: 156 },
-          'Communication': { average: 79.8, count: 156 },
-          'Patient Safety': { average: 77.2, count: 156 }
-        },
-        dailyStats: [
-          { date: '2024-01-01', sessions: 8, averageScore: 76.2 },
-          { date: '2024-01-02', sessions: 12, averageScore: 79.1 },
-          { date: '2024-01-03', sessions: 15, averageScore: 81.3 },
-          { date: '2024-01-04', sessions: 9, averageScore: 77.8 },
-          { date: '2024-01-05', sessions: 11, averageScore: 80.5 },
-          { date: '2024-01-06', sessions: 13, averageScore: 78.9 },
-          { date: '2024-01-07', sessions: 7, averageScore: 82.1 }
-        ],
-        demographics: {
-          educationLevel: {
-            'Undergraduate': 45,
-            'Graduate': 78,
-            'Postgraduate': 33
-          },
-          ageGroup: {
-            '18-25': 23,
-            '26-35': 67,
-            '36-45': 45,
-            '46+': 21
-          }
-        }
-      };
-
-      setAnalytics(mockData);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to load analytics');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // You can still apply dateRange filtering on the frontend if needed, 
+  // or use getAnalyticsByDateRange from the hook instead.
+  // For now, we'll just use the fetched data (defaults to 100 recent sessions).
+  // Ideally, dateRange logic should trigger refetch with specific parameters if supported by the hook.
 
   const exportData = () => {
-    if (!analytics) return;
+    if (!summary || !analyticsData) return;
 
     const csvData = [
       ['Metric', 'Value'],
-      ['Total Sessions', analytics.totalSessions.toString()],
-      ['Average Score', analytics.averageScore.toFixed(1)],
-      ['Average Completion Time (min)', analytics.averageCompletionTime.toFixed(1)],
-      ['Completion Rate (%)', analytics.completionRate.toFixed(1)],
+      ['Total Sessions', summary.totalUsers.toString()],
+      ['Average Score', summary.averageScore.toFixed(1)],
+      ['Average Completion Time (min)', summary.averageCompletionTime.toFixed(1)],
+      ['Average Completed Scenes', summary.averageCompletedScenes.toString()],
       ['', ''],
-      ['Category', 'Average Score', 'Sessions'],
-      ...Object.entries(analytics.categoryScores).map(([category, data]) => [
-        category,
-        data.average.toFixed(1),
-        data.count.toString()
-      ])
+      ['Category', 'Average Score'],
+      ['Timely Pain Management', summary.categoryAverages.timelyPainManagement.toFixed(1)],
+      ['Clinical Judgment', summary.categoryAverages.clinicalJudgment.toFixed(1)],
+      ['Communication', summary.categoryAverages.communication.toFixed(1)],
+      ['Cultural Safety', summary.categoryAverages.culturalSafety.toFixed(1)],
+      ['Bias Mitigation', summary.categoryAverages.biasMitigation.toFixed(1)]
     ];
 
     const csvContent = csvData.map(row => row.join(',')).join('\n');
@@ -148,7 +90,7 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
                 Close
               </button>
               <button
-                onClick={loadAnalytics}
+                onClick={() => refetch()}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Retry
@@ -213,11 +155,10 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
-                className={`px-4 py-2 rounded-lg font-medium transition-colors ${
-                  activeTab === tab.id
-                    ? 'bg-blue-600 text-white'
-                    : 'text-gray-600 hover:bg-gray-200'
-                }`}
+                className={`px-4 py-2 rounded-lg font-medium transition-colors ${activeTab === tab.id
+                  ? 'bg-blue-600 text-white'
+                  : 'text-gray-600 hover:bg-gray-200'
+                  }`}
               >
                 <span className="mr-2">{tab.icon}</span>
                 {tab.label}
@@ -228,7 +169,7 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
 
         {/* Content */}
         <div className="p-6 overflow-y-auto max-h-[calc(90vh-200px)]">
-          {analytics && (
+          {summary && (
             <>
               {/* Overview Tab */}
               {activeTab === 'overview' && (
@@ -242,7 +183,7 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
                         </div>
                         <div>
                           <p className="text-sm text-blue-600 font-medium">Total Sessions</p>
-                          <p className="text-2xl font-bold text-blue-900">{analytics.totalSessions}</p>
+                          <p className="text-2xl font-bold text-blue-900">{summary.totalUsers}</p>
                         </div>
                       </div>
                     </div>
@@ -254,7 +195,7 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
                         </div>
                         <div>
                           <p className="text-sm text-green-600 font-medium">Average Score</p>
-                          <p className="text-2xl font-bold text-green-900">{analytics.averageScore.toFixed(1)}%</p>
+                          <p className="text-2xl font-bold text-green-900">{summary.averageScore.toFixed(1)}%</p>
                         </div>
                       </div>
                     </div>
@@ -266,7 +207,7 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
                         </div>
                         <div>
                           <p className="text-sm text-purple-600 font-medium">Avg. Time</p>
-                          <p className="text-2xl font-bold text-purple-900">{analytics.averageCompletionTime.toFixed(1)}m</p>
+                          <p className="text-2xl font-bold text-purple-900">{summary.averageCompletionTime.toFixed(1)}m</p>
                         </div>
                       </div>
                     </div>
@@ -277,8 +218,8 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
                           <TrendingUp className="w-6 h-6 text-orange-600" />
                         </div>
                         <div>
-                          <p className="text-sm text-orange-600 font-medium">Completion Rate</p>
-                          <p className="text-2xl font-bold text-orange-900">{analytics.completionRate.toFixed(1)}%</p>
+                          <p className="text-sm text-orange-600 font-medium">Avg Scenes Completed</p>
+                          <p className="text-2xl font-bold text-orange-900">{summary.averageCompletedScenes}</p>
                         </div>
                       </div>
                     </div>
@@ -286,22 +227,22 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
 
                   {/* Recent Activity */}
                   <div className="bg-white border border-gray-200 rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Activity</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Sessions</h3>
                     <div className="space-y-3">
-                      {analytics.dailyStats.slice(-5).map((day, index) => (
-                        <div key={day.date} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
+                      {analyticsData.slice(0, 5).map((session, index) => (
+                        <div key={session.id} className="flex items-center justify-between py-2 border-b border-gray-100 last:border-b-0">
                           <div className="flex items-center gap-3">
                             <div className="w-8 h-8 bg-gray-100 rounded-full flex items-center justify-center text-sm font-medium text-gray-600">
                               {index + 1}
                             </div>
                             <div>
-                              <p className="font-medium text-gray-900">{new Date(day.date).toLocaleDateString()}</p>
-                              <p className="text-sm text-gray-500">{day.sessions} sessions</p>
+                              <p className="font-medium text-gray-900">{new Date(session.submission_timestamp).toLocaleDateString()}</p>
+                              <p className="text-sm text-gray-500">Completed {session.completed_scenes.length} scenes</p>
                             </div>
                           </div>
                           <div className="text-right">
-                            <p className="font-semibold text-gray-900">{day.averageScore.toFixed(1)}%</p>
-                            <p className="text-sm text-gray-500">avg. score</p>
+                            <p className="font-semibold text-gray-900">{session.final_score.toFixed(1)}%</p>
+                            <p className="text-sm text-gray-500">score</p>
                           </div>
                         </div>
                       ))}
@@ -316,20 +257,26 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
                   <div className="bg-white border border-gray-200 rounded-xl p-6">
                     <h3 className="text-lg font-semibold text-gray-900 mb-6">Category Performance</h3>
                     <div className="space-y-4">
-                      {Object.entries(analytics.categoryScores).map(([category, data]) => (
+                      {Object.entries({
+                        'Timely Pain Management': summary.categoryAverages.timelyPainManagement,
+                        'Clinical Judgment': summary.categoryAverages.clinicalJudgment,
+                        'Communication': summary.categoryAverages.communication,
+                        'Cultural Safety': summary.categoryAverages.culturalSafety,
+                        'Bias Mitigation': summary.categoryAverages.biasMitigation
+                      }).map(([category, average]) => (
                         <div key={category} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-2">
                               <h4 className="font-medium text-gray-900">{category}</h4>
-                              <span className="text-sm text-gray-600">{data.count} sessions</span>
+                              <span className="text-sm text-gray-600">{summary.totalUsers} sessions</span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-2">
                               <div
                                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                                style={{ width: `${data.average}%` }}
+                                style={{ width: `${average}%` }}
                               ></div>
                             </div>
-                            <p className="text-sm text-gray-600 mt-1">Average: {data.average.toFixed(1)}%</p>
+                            <p className="text-sm text-gray-600 mt-1">Average: {average.toFixed(1)}%</p>
                           </div>
                         </div>
                       ))}
@@ -345,17 +292,17 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
                     <div className="bg-white border border-gray-200 rounded-xl p-6">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Education Level</h3>
                       <div className="space-y-3">
-                        {Object.entries(analytics.demographics.educationLevel).map(([level, count]) => (
+                        {Object.entries(getPerformanceByEducationLevel()).map(([level, data]) => (
                           <div key={level} className="flex items-center justify-between">
                             <span className="text-gray-700">{level}</span>
                             <div className="flex items-center gap-2">
                               <div className="w-24 bg-gray-200 rounded-full h-2">
                                 <div
                                   className="bg-blue-600 h-2 rounded-full"
-                                  style={{ width: `${(count / analytics.totalSessions) * 100}%` }}
+                                  style={{ width: `${(data.count / summary.totalUsers) * 100}%` }}
                                 ></div>
                               </div>
-                              <span className="text-sm font-medium text-gray-900 w-8 text-right">{count}</span>
+                              <span className="text-sm font-medium text-gray-900 w-8 text-right">{data.count}</span>
                             </div>
                           </div>
                         ))}
@@ -365,17 +312,17 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
                     <div className="bg-white border border-gray-200 rounded-xl p-6">
                       <h3 className="text-lg font-semibold text-gray-900 mb-4">Age Groups</h3>
                       <div className="space-y-3">
-                        {Object.entries(analytics.demographics.ageGroup).map(([ageGroup, count]) => (
+                        {Object.entries(getPerformanceByAgeGroup()).map(([ageGroup, data]) => (
                           <div key={ageGroup} className="flex items-center justify-between">
                             <span className="text-gray-700">{ageGroup}</span>
                             <div className="flex items-center gap-2">
                               <div className="w-24 bg-gray-200 rounded-full h-2">
                                 <div
                                   className="bg-green-600 h-2 rounded-full"
-                                  style={{ width: `${(count / analytics.totalSessions) * 100}%` }}
+                                  style={{ width: `${(data.count / summary.totalUsers) * 100}%` }}
                                 ></div>
                               </div>
-                              <span className="text-sm font-medium text-gray-900 w-8 text-right">{count}</span>
+                              <span className="text-sm font-medium text-gray-900 w-8 text-right">{data.count}</span>
                             </div>
                           </div>
                         ))}
@@ -389,22 +336,21 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
               {activeTab === 'trends' && (
                 <div className="space-y-6">
                   <div className="bg-white border border-gray-200 rounded-xl p-6">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Daily Performance Trends</h3>
+                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Recent Sessions Performance</h3>
                     <div className="space-y-4">
-                      {analytics.dailyStats.map((day, index) => (
-                        <div key={day.date} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
+                      {analyticsData.slice(0, 10).map((session) => (
+                        <div key={session.id} className="flex items-center gap-4 p-3 bg-gray-50 rounded-lg">
                           <div className="w-16 text-sm text-gray-600">
-                            {new Date(day.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                            {new Date(session.submission_timestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                           </div>
                           <div className="flex-1">
                             <div className="flex items-center justify-between mb-1">
-                              <span className="text-sm text-gray-600">{day.sessions} sessions</span>
-                              <span className="text-sm font-medium text-gray-900">{day.averageScore.toFixed(1)}%</span>
+                              <span className="text-sm font-medium text-gray-900">{session.final_score.toFixed(1)}% Score</span>
                             </div>
                             <div className="w-full bg-gray-200 rounded-full h-2">
                               <div
                                 className="bg-blue-600 h-2 rounded-full transition-all duration-300"
-                                style={{ width: `${day.averageScore}%` }}
+                                style={{ width: `${session.final_score}%` }}
                               ></div>
                             </div>
                           </div>
@@ -426,7 +372,7 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
             </p>
             <div className="flex gap-3">
               <button
-                onClick={loadAnalytics}
+                onClick={() => refetch()}
                 className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors flex items-center gap-2"
               >
                 <RefreshCw className="w-4 h-4" />
