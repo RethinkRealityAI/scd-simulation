@@ -1,0 +1,234 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.5s ease-out;
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.6s ease-out;
+}
+
+@keyframes pulse-glow {
+
+  0%,
+  100% {
+    box-shadow: 0 0 5px rgba(34, 211, 238, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 0 20px rgba(34, 211, 238, 0.8);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(15, 23, 42, 0.3);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.5);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.7);
+}
+
+/* ─── react-grid-layout: editor (BuilderCanvas) only ──────────────── */
+.react-grid-layout {
+  height: 100% !important;
+  max-height: 100% !important;
+  min-height: 0 !important;
+}
+
+.react-grid-layout>.react-grid-item {
+  display: flex !important;
+  flex-direction: column !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  overflow: visible !important;
+  /* needed so resize handles outside bounds are clickable */
+}
+
+/* ─── All-edge resize handles: visibility + styling ───────────────── */
+
+.react-grid-item>.react-resizable-handle {
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 30;
+}
+
+.react-grid-item:hover>.react-resizable-handle,
+.react-grid-item.selected>.react-resizable-handle {
+  opacity: 1;
+}
+
+/* ─── Edge handles (thin bars along each edge) ────────────────────── */
+.react-resizable-handle-n,
+.react-resizable-handle-s {
+  left: 4px !important;
+  right: 4px !important;
+  width: auto !important;
+  height: 6px !important;
+  cursor: ns-resize !important;
+}
+
+.react-resizable-handle-n {
+  top: -2px !important;
+}
+
+.react-resizable-handle-s {
+  bottom: -2px !important;
+}
+
+.react-resizable-handle-e,
+.react-resizable-handle-w {
+  top: 4px !important;
+  bottom: 4px !important;
+  height: auto !important;
+  width: 6px !important;
+  cursor: ew-resize !important;
+}
+
+.react-resizable-handle-e {
+  right: -2px !important;
+}
+
+.react-resizable-handle-w {
+  left: -2px !important;
+}
+
+/* ─── Corner handles (small squares) ──────────────────────────────── */
+.react-resizable-handle-ne,
+.react-resizable-handle-nw,
+.react-resizable-handle-se,
+.react-resizable-handle-sw {
+  width: 10px !important;
+  height: 10px !important;
+  border-radius: 2px;
+  background: rgba(96, 165, 250, 0.7) !important;
+  border: 1px solid rgba(96, 165, 250, 0.9);
+}
+
+.react-resizable-handle-se {
+  right: -3px !important;
+  bottom: -3px !important;
+  cursor: se-resize !important;
+}
+
+.react-resizable-handle-sw {
+  left: -3px !important;
+  bottom: -3px !important;
+  cursor: sw-resize !important;
+}
+
+.react-resizable-handle-ne {
+  right: -3px !important;
+  top: -3px !important;
+  cursor: ne-resize !important;
+}
+
+.react-resizable-handle-nw {
+  left: -3px !important;
+  top: -3px !important;
+  cursor: nw-resize !important;
+}
+
+/* Remove the default arrow SVG from all handles */
+.react-resizable-handle::after {
+  display: none !important;
+}
+
+
+.react-resizable-handle-n:hover,
+.react-resizable-handle-s:hover {
+  background: rgba(96, 165, 250, 0.25);
+  border-radius: 3px;
+}
+
+.react-resizable-handle-e:hover,
+.react-resizable-handle-w:hover {
+  background: rgba(96, 165, 250, 0.25);
+  border-radius: 3px;
+}
+
+/* Corner handles brighten on hover */
+.react-resizable-handle-ne:hover,
+.react-resizable-handle-nw:hover,
+.react-resizable-handle-se:hover,
+.react-resizable-handle-sw:hover {
+  background: rgba(96, 165, 250, 1) !important;
+  transform: scale(1.2);
+}
+
+/* ─── Active resize state: highlight the item ─────────────────────── */
+.react-grid-item.resizing {
+  outline: 2px solid rgba(96, 165, 250, 0.5);
+  outline-offset: 1px;
+}
+
+/* Select dropdown styling */
+select option {
+  background-color: #0f172a !important;
+  color: white !important;
+  padding: 8px !important;
+}
+
+select {
+  background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e");
+  background-position: right 0.5rem center;
+  background-repeat: no-repeat;
+  background-size: 1.5em 1.5em;
+  padding-right: 2.5rem;
+}

@@ -1,0 +1,244 @@
+import React, { useCallback, useRef } from 'react';
+import GridLayout, { Layout } from 'react-grid-layout';
+import 'react-grid-layout/css/styles.css';
+import 'react-resizable/css/styles.css';
+import {
+  GripVertical,
+  X,
+  Eye,
+  EyeOff,
+  Activity,
+  Play,
+  HelpCircle,
+  MessageSquare,
+  Stethoscope,
+  Volume2,
+  FileText,
+} from 'lucide-react';
+import { SceneData } from '../../../data/scenesData';
+import { SceneComponentLayout, SceneComponentType } from '../../../data/scenesData';
+import { COMPONENT_REGISTRY } from './componentRegistry';
+import { renderSceneComponent } from '../../renderSceneComponent';
+import {
+  GRID_COLS,
+  GRID_ROWS,
+  GRID_MARGIN,
+  GRID_CONTAINER_PADDING,
+  ALL_RESIZE_HANDLES,
+  computeRowHeight,
+} from '../../../utils/gridConstants';
+
+interface BuilderCanvasProps {
+  sceneData: SceneData;
+  components: SceneComponentLayout[];
+  selectedComponentId: string | null;
+  onSelectComponent: (id: string | null) => void;
+  onLayoutChange: (updated: SceneComponentLayout[]) => void;
+  onToggleComponent: (id: string) => void;
+  onRemoveComponent: (id: string) => void;
+  canvasWidth: number;
+  canvasHeight?: number;
+  previewVideoUrl?: string;
+}
+
+const ICON_MAP: Record<string, React.FC<{ className?: string }>> = {
+  Activity, Play, HelpCircle, MessageSquare, Stethoscope, Volume2, FileText,
+};
+
+function ComponentIcon({ type, className }: { type: SceneComponentType; className?: string }) {
+  const def = COMPONENT_REGISTRY[type];
+  const Icon = ICON_MAP[def.icon] || FileText;
+  return <Icon className={className} />;
+}
+
+const BuilderCanvas: React.FC<BuilderCanvasProps> = ({
+  sceneData,
+  components,
+  selectedComponentId,
+  onSelectComponent,
+  onLayoutChange,
+  onToggleComponent,
+  onRemoveComponent,
+  canvasWidth,
+  canvasHeight,
+  previewVideoUrl,
+}) => {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const rowHeight = computeRowHeight(canvasHeight);
+  const enabledComponents = components.filter(c => c.enabled);
+
+  // @ts-ignore
+  const layouts: Layout[] = enabledComponents.map(c => ({
+    i: c.id,
+    x: c.x, y: c.y, w: c.w, h: c.h,
+    minW: c.minW, minH: c.minH, maxW: c.maxW, maxH: c.maxH,
+  }));
+
+  const handleLayoutChange = useCallback(
+    (newLayouts: any[]) => {
+      const updated = components.map(comp => {
+        const found = newLayouts.find((l: any) => l.i === comp.id);
+        if (!found) return comp;
+        return { ...comp, x: found.x, y: found.y, w: found.w, h: found.h };
+      });
+      onLayoutChange(updated);
+    },
+    [components, onLayoutChange],
+  );
+
+  const effectiveVideoUrl = previewVideoUrl || sceneData.videoUrl;
+
+  return (
+    <div
+      ref={containerRef}
+      className="relative w-full h-full min-w-0 min-h-0 overflow-hidden"
+      style={{
+        backgroundImage: 'url(https://i.ibb.co/BH6c7SRj/Splas.jpg)',
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+      }}
+      onClick={(e) => {
+        if (e.target === containerRef.current) onSelectComponent(null);
+      }}
+    >
+      <div className="absolute inset-0 bg-black/60 pointer-events-none" />
+
+      {/*
+       * LAYER 1: CSS Grid preview — renders the actual scene components
+       * using the same fr-based grid as the user-facing DynamicSceneLayout.
+       * This ensures components ALWAYS look identical to the frontend scene.
+       */}
+      <div
+        className="absolute inset-0 z-0 pointer-events-none overflow-hidden"
+        style={{
+          display: 'grid',
+          gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
+          gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`,
+          gap: `${GRID_MARGIN[1]}px ${GRID_MARGIN[0]}px`,
+          padding: `${GRID_CONTAINER_PADDING[1]}px ${GRID_CONTAINER_PADDING[0]}px`,
+          boxSizing: 'border-box',
+        }}
+      >
+        {enabledComponents.map(comp => {
+          const node = renderSceneComponent({
+            type: comp.type,
+            scene: sceneData,
+            sceneId: sceneData.id,
+            videoUrl: effectiveVideoUrl,
+            videosLoading: false,
+            isPreview: true,
+            interactiveVariant: 'combined',
+            suppressCompletionControls: false,
+            sceneAudioFiles: [],
+            sceneResponses: [],
+            allQuestionsSubmitted: false,
+            showDiscussion: false,
+            isSceneCompleted: false,
+          });
+          if (!node) return null;
+          return (
+            <div
+              key={comp.id}
+              className="relative min-w-0 min-h-0 overflow-hidden rounded-xl"
+              style={{
+                gridColumn: `${comp.x + 1} / ${comp.x + comp.w + 1}`,
+                gridRow: `${comp.y + 1} / ${comp.y + comp.h + 1}`,
+              }}
+            >
+              {/* Absolute inner wrapper enforces strict clipping regardless of child sizing */}
+              <div className="absolute inset-0 flex flex-col min-h-0 min-w-0 overflow-hidden">
+                {node}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/*
+       * LAYER 2: react-grid-layout — invisible interaction layer for
+       * drag handles and resize handles. This sits on top of the preview
+       * so admin can rearrange, but the actual visual content is rendered
+       * by Layer 1 above (no clipping issues).
+       */}
+      <div className="relative z-10 w-full h-full min-w-0 min-h-0 overflow-hidden">
+        <GridLayout
+          className="layout"
+          // @ts-ignore
+          layout={layouts}
+          cols={GRID_COLS}
+          rowHeight={rowHeight}
+          width={canvasWidth}
+          maxRows={GRID_ROWS}
+          compactType="vertical"
+          preventCollision={false}
+          isResizable={true}
+          isDraggable={true}
+          // @ts-ignore
+          resizeHandles={ALL_RESIZE_HANDLES}
+          // @ts-ignore
+          onLayoutChange={handleLayoutChange}
+          draggableHandle=".drag-handle"
+          margin={GRID_MARGIN}
+          containerPadding={GRID_CONTAINER_PADDING}
+        >
+          {enabledComponents.map(comp => {
+            const def = COMPONENT_REGISTRY[comp.type];
+            const isSelected = selectedComponentId === comp.id;
+
+            return (
+              <div
+                key={comp.id}
+                className={`grid-item group relative rounded-xl transition-all duration-150
+                  ${isSelected
+                    ? 'ring-2 ring-blue-400 ring-offset-1 ring-offset-transparent selected'
+                    : 'ring-1 ring-white/10 hover:ring-white/30'
+                  }`}
+                onClick={(e) => { e.stopPropagation(); onSelectComponent(comp.id); }}
+              >
+                {/* Overlay controls — drag handle + toggle/remove buttons */}
+                <div className="absolute inset-x-1.5 top-1.5 z-20 flex items-start justify-between pointer-events-none">
+                  <div
+                    className={`drag-handle pointer-events-auto inline-flex max-w-[calc(100%-4rem)] items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium select-none backdrop-blur-sm cursor-grab active:cursor-grabbing transition-colors ${isSelected
+                      ? 'bg-blue-600/85 border-blue-300/40 text-white'
+                      : 'bg-black/50 border-white/15 text-white/80 group-hover:bg-black/65 group-hover:text-white'
+                      }`}
+                  >
+                    <GripVertical className="w-2.5 h-2.5 flex-shrink-0 opacity-70" />
+                    <ComponentIcon type={comp.type} className="w-2.5 h-2.5 flex-shrink-0 opacity-80" />
+                    <span className="truncate">{def.label}</span>
+                  </div>
+
+                  <div
+                    className={`pointer-events-auto flex items-center gap-0.5 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                    onMouseDown={e => e.stopPropagation()}
+                  >
+                    <button
+                      title={comp.enabled ? 'Hide component' : 'Show component'}
+                      onClick={(e) => { e.stopPropagation(); onToggleComponent(comp.id); }}
+                      className="w-5 h-5 rounded flex items-center justify-center text-white/60 hover:text-white hover:bg-white/20 backdrop-blur-sm transition-colors"
+                    >
+                      {comp.enabled ? <Eye className="w-3 h-3" /> : <EyeOff className="w-3 h-3" />}
+                    </button>
+                    <button
+                      title="Remove component"
+                      onClick={(e) => { e.stopPropagation(); onRemoveComponent(comp.id); }}
+                      className="w-5 h-5 rounded flex items-center justify-center text-white/60 hover:text-red-400 hover:bg-red-500/20 backdrop-blur-sm transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+
+                {isSelected && (
+                  <div className="absolute inset-0 rounded-xl pointer-events-none ring-2 ring-blue-400" />
+                )}
+              </div>
+            );
+          })}
+        </GridLayout>
+      </div>
+    </div>
+  );
+};
+
+export default BuilderCanvas;
