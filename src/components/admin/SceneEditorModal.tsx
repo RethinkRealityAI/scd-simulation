@@ -69,6 +69,7 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
     title: '',
     description: '',
   });
+  const [uploadedPreviewVideoUrl, setUploadedPreviewVideoUrl] = useState<string | null>(null);
 
   useEffect(() => {
     setEditedScene({
@@ -76,6 +77,28 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
       vitalsDisplayConfig: scene.vitalsDisplayConfig || { ...defaultVitalsDisplayConfig },
     });
   }, [scene]);
+
+  useEffect(() => {
+    if (!videoEmbed.file) {
+      setUploadedPreviewVideoUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(videoEmbed.file);
+    setUploadedPreviewVideoUrl(objectUrl);
+
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [videoEmbed.file]);
+
+  const effectivePreviewVideoUrl =
+    videoEmbed.sourceType === 'stream' && videoEmbed.parsed?.embedUrl
+      ? videoEmbed.parsed.embedUrl
+      : videoEmbed.sourceType === 'upload'
+        ? uploadedPreviewVideoUrl || editedScene.videoUrl || undefined
+        : editedScene.videoUrl || undefined;
+  const existingSavedVideoUrl = editedScene.videoUrl || scene.videoUrl || undefined;
 
   const handleSave = async () => {
     try {
@@ -176,6 +199,7 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
     return (
       <ScenePreview
         sceneData={editedScene}
+        previewVideoUrl={effectivePreviewVideoUrl}
         onClose={() => setShowPreview(false)}
       />
     );
@@ -313,7 +337,7 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
                     <VideoEmbedInput
                       value={videoEmbed}
                       onChange={setVideoEmbed}
-                      existingVideoUrl={scene.videoUrl}
+                      existingVideoUrl={existingSavedVideoUrl}
                       sceneId={scene.id}
                       compact
                     />

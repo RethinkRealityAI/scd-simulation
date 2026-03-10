@@ -26,6 +26,55 @@ function hasValue(val: unknown): boolean {
   return Boolean(val);
 }
 
+interface SimulationVideoRecord {
+  scene_id: number;
+  video_url: string | null;
+  poster_url?: string | null;
+}
+
+function applySceneVideo(
+  scene: SceneData,
+  videoRecord?: SimulationVideoRecord | null,
+): SceneData {
+  if (!videoRecord) return scene;
+
+  return {
+    ...scene,
+    videoUrl: videoRecord.video_url || scene.videoUrl,
+    posterUrl: videoRecord.poster_url || scene.posterUrl,
+  };
+}
+
+function buildMergedScene(
+  templateScene: SceneData,
+  sceneId: number,
+  dbConfig: any,
+  videoRecord?: SimulationVideoRecord | null,
+): SceneData {
+  return applySceneVideo(
+    {
+      ...templateScene,
+      id: sceneId.toString(),
+      title: dbConfig.title || templateScene.title,
+      description: dbConfig.description || templateScene.description,
+      vitals: hasValue(dbConfig.vitals_config) ? dbConfig.vitals_config : templateScene.vitals,
+      vitalsDisplayConfig: hasValue(dbConfig.vitals_display_config) ? dbConfig.vitals_display_config : templateScene.vitalsDisplayConfig,
+      quiz: hasValue(dbConfig.quiz_questions) ? dbConfig.quiz_questions : templateScene.quiz,
+      actionPrompt: normalizeActionPromptConfig(
+        hasValue(dbConfig.action_prompts) ? dbConfig.action_prompts : templateScene.actionPrompt,
+        templateScene.actionPrompt,
+      ),
+      discussionPrompts: hasValue(dbConfig.discussion_prompts) ? dbConfig.discussion_prompts : templateScene.discussionPrompts,
+      clinicalFindings: hasValue(dbConfig.clinical_findings) ? dbConfig.clinical_findings : templateScene.clinicalFindings,
+      scoringCategories: hasValue(dbConfig.scoring_categories) ? dbConfig.scoring_categories : templateScene.scoringCategories,
+      layoutConfig: normalizeSceneLayoutConfig(
+        hasValue(dbConfig.layout_config) ? dbConfig.layout_config : templateScene.layoutConfig,
+      ),
+    },
+    videoRecord,
+  );
+}
+
 /**
  * Hook to load scene configurations from database and merge with static defaults
  * This ensures that admin-configured scenes are used in the main app
@@ -53,79 +102,93 @@ export const useSceneConfig = (sceneId: number, instanceId?: string) => {
         };
 
         let dbConfig: any = null;
+        let resolvedVideo: SimulationVideoRecord | null = null;
 
         if (instanceId) {
-          const { data: instanceConfig, error: instanceError } = await supabase
-            .from('scene_configurations')
-            .select('*')
-            .eq('scene_id', sceneId)
-            .eq('is_active', true)
-            .eq('instance_id', instanceId)
-            .maybeSingle();
-
-          if (instanceError && instanceError.code !== 'PGRST116') {
-            console.error('Error loading instance scene configuration:', instanceError);
-          }
-
-          dbConfig = instanceConfig;
-
-          // Safe fallback: if the instance does not override this scene,
-          // fall back to the base/global scene configuration.
-          if (!dbConfig) {
-            const { data: globalConfig, error: globalError } = await supabase
+          const [
+            { data: instanceConfig, error: instanceError },
+            { data: globalConfig, error: globalError },
+            { data: instanceVideo, error: instanceVideoError },
+            { data: globalVideo, error: globalVideoError },
+          ] = await Promise.all([
+            supabase
+              .from('scene_configurations')
+              .select('*')
+              .eq('scene_id', sceneId)
+              .eq('is_active', true)
+              .eq('instance_id', instanceId)
+              .maybeSingle(),
+            supabase
               .from('scene_configurations')
               .select('*')
               .eq('scene_id', sceneId)
               .eq('is_active', true)
               .is('instance_id', null)
-              .maybeSingle();
+              .maybeSingle(),
+            supabase
+              .from('simulation_videos')
+              .select('scene_id, video_url, poster_url')
+              .eq('scene_id', sceneId)
+              .eq('instance_id', instanceId)
+              .maybeSingle(),
+            supabase
+              .from('simulation_videos')
+              .select('scene_id, video_url, poster_url')
+              .eq('scene_id', sceneId)
+              .is('instance_id', null)
+              .maybeSingle(),
+          ]);
 
-            if (globalError && globalError.code !== 'PGRST116') {
-              console.error('Error loading global fallback scene configuration:', globalError);
-            }
-
-            dbConfig = globalConfig;
+          if (instanceError && instanceError.code !== 'PGRST116') {
+            console.error('Error loading instance scene configuration:', instanceError);
           }
+          if (globalError && globalError.code !== 'PGRST116') {
+            console.error('Error loading global fallback scene configuration:', globalError);
+          }
+          if (instanceVideoError && instanceVideoError.code !== 'PGRST116') {
+            console.error('Error loading instance scene video:', instanceVideoError);
+          }
+          if (globalVideoError && globalVideoError.code !== 'PGRST116') {
+            console.error('Error loading global fallback scene video:', globalVideoError);
+          }
+
+          dbConfig = instanceConfig || globalConfig;
+          resolvedVideo = instanceVideo || globalVideo;
         } else {
-          const { data, error } = await supabase
-            .from('scene_configurations')
-            .select('*')
-            .eq('scene_id', sceneId)
-            .eq('is_active', true)
-            .is('instance_id', null)
-            .maybeSingle();
+          const [
+            { data, error },
+            { data: videoData, error: videoError },
+          ] = await Promise.all([
+            supabase
+              .from('scene_configurations')
+              .select('*')
+              .eq('scene_id', sceneId)
+              .eq('is_active', true)
+              .is('instance_id', null)
+              .maybeSingle(),
+            supabase
+              .from('simulation_videos')
+              .select('scene_id, video_url, poster_url')
+              .eq('scene_id', sceneId)
+              .is('instance_id', null)
+              .maybeSingle(),
+          ]);
 
           if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
             console.error('Error loading scene configuration:', error);
           }
+          if (videoError && videoError.code !== 'PGRST116') {
+            console.error('Error loading scene video:', videoError);
+          }
 
           dbConfig = data;
+          resolvedVideo = videoData;
         }
 
         if (dbConfig) {
-          // Merge database config with static scene (database takes precedence only when non-empty)
-          const mergedScene: SceneData = {
-            ...templateScene,
-            id: sceneId.toString(),
-            title: dbConfig.title || templateScene.title,
-            description: dbConfig.description || templateScene.description,
-            vitals: hasValue(dbConfig.vitals_config) ? dbConfig.vitals_config : templateScene.vitals,
-            vitalsDisplayConfig: hasValue(dbConfig.vitals_display_config) ? dbConfig.vitals_display_config : templateScene.vitalsDisplayConfig,
-            quiz: hasValue(dbConfig.quiz_questions) ? dbConfig.quiz_questions : templateScene.quiz,
-            actionPrompt: normalizeActionPromptConfig(
-              hasValue(dbConfig.action_prompts) ? dbConfig.action_prompts : templateScene.actionPrompt,
-              templateScene.actionPrompt,
-            ),
-            discussionPrompts: hasValue(dbConfig.discussion_prompts) ? dbConfig.discussion_prompts : templateScene.discussionPrompts,
-            clinicalFindings: hasValue(dbConfig.clinical_findings) ? dbConfig.clinical_findings : templateScene.clinicalFindings,
-            scoringCategories: hasValue(dbConfig.scoring_categories) ? dbConfig.scoring_categories : templateScene.scoringCategories,
-            layoutConfig: normalizeSceneLayoutConfig(
-              hasValue(dbConfig.layout_config) ? dbConfig.layout_config : templateScene.layoutConfig,
-            ),
-          };
-          setSceneData(mergedScene);
+          setSceneData(buildMergedScene(templateScene, sceneId, dbConfig, resolvedVideo));
         } else {
-          setSceneData(staticScene || null);
+          setSceneData(applySceneVideo(staticScene || templateScene, resolvedVideo));
         }
       } catch (err) {
         console.error('Error in loadSceneConfig:', err);
@@ -159,6 +222,8 @@ export const useAllSceneConfigs = (instanceId?: string) => {
           const [
             { data: instanceConfigs, error: instanceError },
             { data: globalConfigs, error: globalError },
+            { data: instanceVideos, error: instanceVideosError },
+            { data: globalVideos, error: globalVideosError },
           ] = await Promise.all([
             supabase
               .from('scene_configurations')
@@ -172,6 +237,16 @@ export const useAllSceneConfigs = (instanceId?: string) => {
               .eq('is_active', true)
               .is('instance_id', null)
               .order('scene_id'),
+            supabase
+              .from('simulation_videos')
+              .select('scene_id, video_url, poster_url')
+              .eq('instance_id', instanceId)
+              .order('scene_id'),
+            supabase
+              .from('simulation_videos')
+              .select('scene_id, video_url, poster_url')
+              .is('instance_id', null)
+              .order('scene_id'),
           ]);
 
           if (instanceError || globalError) {
@@ -180,33 +255,23 @@ export const useAllSceneConfigs = (instanceId?: string) => {
             setLoading(false);
             return;
           }
+          if (instanceVideosError || globalVideosError) {
+            console.error('Error loading scene videos:', instanceVideosError || globalVideosError);
+          }
 
           const instanceById = new Map((instanceConfigs || []).map(config => [config.scene_id, config]));
           const globalById = new Map((globalConfigs || []).map(config => [config.scene_id, config]));
+          const instanceVideosById = new Map((instanceVideos || []).map(video => [video.scene_id, video]));
+          const globalVideosById = new Map((globalVideos || []).map(video => [video.scene_id, video]));
 
           const mergedStaticScenes = scenes.map(staticScene => {
             const sceneId = parseInt(staticScene.id, 10);
             const dbConfig = instanceById.get(sceneId) || globalById.get(sceneId);
-            if (!dbConfig) return staticScene;
+            const videoRecord = instanceVideosById.get(sceneId) || globalVideosById.get(sceneId);
 
-            return {
-              ...staticScene,
-              title: dbConfig.title || staticScene.title,
-              description: dbConfig.description || staticScene.description,
-              vitals: hasValue(dbConfig.vitals_config) ? dbConfig.vitals_config : staticScene.vitals,
-              vitalsDisplayConfig: hasValue(dbConfig.vitals_display_config) ? dbConfig.vitals_display_config : staticScene.vitalsDisplayConfig,
-              quiz: hasValue(dbConfig.quiz_questions) ? dbConfig.quiz_questions : staticScene.quiz,
-              actionPrompt: normalizeActionPromptConfig(
-                hasValue(dbConfig.action_prompts) ? dbConfig.action_prompts : staticScene.actionPrompt,
-                staticScene.actionPrompt,
-              ),
-              discussionPrompts: hasValue(dbConfig.discussion_prompts) ? dbConfig.discussion_prompts : staticScene.discussionPrompts,
-              clinicalFindings: hasValue(dbConfig.clinical_findings) ? dbConfig.clinical_findings : staticScene.clinicalFindings,
-              scoringCategories: hasValue(dbConfig.scoring_categories) ? dbConfig.scoring_categories : staticScene.scoringCategories,
-              layoutConfig: normalizeSceneLayoutConfig(
-                hasValue(dbConfig.layout_config) ? dbConfig.layout_config : staticScene.layoutConfig,
-              ),
-            } as SceneData;
+            if (!dbConfig) return applySceneVideo(staticScene, videoRecord);
+
+            return buildMergedScene(staticScene, sceneId, dbConfig, videoRecord);
           });
 
           const extraInstanceScenes = (instanceConfigs || [])
@@ -225,25 +290,9 @@ export const useAllSceneConfigs = (instanceId?: string) => {
                 actionPrompt: undefined,
               };
 
-              return {
-                ...templateScene,
-                id: dbConfig.scene_id.toString(),
-                title: dbConfig.title || templateScene.title,
-                description: dbConfig.description || templateScene.description,
-                vitals: hasValue(dbConfig.vitals_config) ? dbConfig.vitals_config : templateScene.vitals,
-                vitalsDisplayConfig: hasValue(dbConfig.vitals_display_config) ? dbConfig.vitals_display_config : templateScene.vitalsDisplayConfig,
-                quiz: hasValue(dbConfig.quiz_questions) ? dbConfig.quiz_questions : templateScene.quiz,
-                actionPrompt: normalizeActionPromptConfig(
-                  hasValue(dbConfig.action_prompts) ? dbConfig.action_prompts : templateScene.actionPrompt,
-                  templateScene.actionPrompt,
-                ),
-                discussionPrompts: hasValue(dbConfig.discussion_prompts) ? dbConfig.discussion_prompts : templateScene.discussionPrompts,
-                clinicalFindings: hasValue(dbConfig.clinical_findings) ? dbConfig.clinical_findings : templateScene.clinicalFindings,
-                scoringCategories: hasValue(dbConfig.scoring_categories) ? dbConfig.scoring_categories : templateScene.scoringCategories,
-                layoutConfig: normalizeSceneLayoutConfig(
-                  hasValue(dbConfig.layout_config) ? dbConfig.layout_config : templateScene.layoutConfig,
-                ),
-              } as SceneData;
+              const videoRecord = instanceVideosById.get(dbConfig.scene_id) || globalVideosById.get(dbConfig.scene_id);
+
+              return buildMergedScene(templateScene, dbConfig.scene_id, dbConfig, videoRecord);
             });
 
           setAllScenes(
@@ -252,12 +301,22 @@ export const useAllSceneConfigs = (instanceId?: string) => {
           );
         } else {
           // Load all database configurations
-          const { data: dbConfigs, error } = await supabase
-            .from('scene_configurations')
-            .select('*')
-            .eq('is_active', true)
-            .is('instance_id', null)
-            .order('scene_id');
+          const [
+            { data: dbConfigs, error },
+            { data: globalVideos, error: globalVideosError },
+          ] = await Promise.all([
+            supabase
+              .from('scene_configurations')
+              .select('*')
+              .eq('is_active', true)
+              .is('instance_id', null)
+              .order('scene_id'),
+            supabase
+              .from('simulation_videos')
+              .select('scene_id, video_url, poster_url')
+              .is('instance_id', null)
+              .order('scene_id'),
+          ]);
 
           if (error) {
             console.error('Error loading scene configurations:', error);
@@ -265,37 +324,24 @@ export const useAllSceneConfigs = (instanceId?: string) => {
             setLoading(false);
             return;
           }
-
-          if (dbConfigs && dbConfigs.length > 0) {
-            // Global scope: preserve static scenes and overlay db config.
-            const mergedStaticScenes = scenes.map(staticScene => {
-              const dbConfig = dbConfigs.find(config => config.scene_id === parseInt(staticScene.id, 10));
-              if (!dbConfig) return staticScene;
-
-              return {
-                ...staticScene,
-                title: dbConfig.title || staticScene.title,
-                description: dbConfig.description || staticScene.description,
-                vitals: hasValue(dbConfig.vitals_config) ? dbConfig.vitals_config : staticScene.vitals,
-                vitalsDisplayConfig: hasValue(dbConfig.vitals_display_config) ? dbConfig.vitals_display_config : staticScene.vitalsDisplayConfig,
-                quiz: hasValue(dbConfig.quiz_questions) ? dbConfig.quiz_questions : staticScene.quiz,
-                actionPrompt: normalizeActionPromptConfig(
-                  hasValue(dbConfig.action_prompts) ? dbConfig.action_prompts : staticScene.actionPrompt,
-                  staticScene.actionPrompt,
-                ),
-                discussionPrompts: hasValue(dbConfig.discussion_prompts) ? dbConfig.discussion_prompts : staticScene.discussionPrompts,
-                clinicalFindings: hasValue(dbConfig.clinical_findings) ? dbConfig.clinical_findings : staticScene.clinicalFindings,
-                scoringCategories: hasValue(dbConfig.scoring_categories) ? dbConfig.scoring_categories : staticScene.scoringCategories,
-                layoutConfig: normalizeSceneLayoutConfig(
-                  hasValue(dbConfig.layout_config) ? dbConfig.layout_config : staticScene.layoutConfig,
-                ),
-              } as SceneData;
-            });
-
-            setAllScenes(mergedStaticScenes);
-          } else {
-            setAllScenes(scenes);
+          if (globalVideosError) {
+            console.error('Error loading scene videos:', globalVideosError);
           }
+
+          const globalVideosById = new Map((globalVideos || []).map(video => [video.scene_id, video]));
+
+          const configsById = new Map((dbConfigs || []).map(config => [config.scene_id, config]));
+          const mergedStaticScenes = scenes.map(staticScene => {
+            const sceneId = parseInt(staticScene.id, 10);
+            const dbConfig = configsById.get(sceneId);
+            const videoRecord = globalVideosById.get(sceneId);
+
+            if (!dbConfig) return applySceneVideo(staticScene, videoRecord);
+
+            return buildMergedScene(staticScene, sceneId, dbConfig, videoRecord);
+          });
+
+          setAllScenes(mergedStaticScenes);
         }
       } catch (err) {
         console.error('Error in loadAllConfigs:', err);

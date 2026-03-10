@@ -5,17 +5,20 @@ import QuizComponent from './QuizComponent';
 import { SceneData } from '../data/scenesData';
 import DynamicSceneLayout from './DynamicSceneLayout';
 import SimulationCompleteScreen from './SimulationCompleteScreen';
+import { renderSceneComponent } from './renderSceneComponent';
 
 interface ScenePreviewProps {
   sceneData: SceneData;
   onClose: () => void;
+  previewVideoUrl?: string;
 }
 
-const ScenePreview: React.FC<ScenePreviewProps> = ({ sceneData, onClose }) => {
+const ScenePreview: React.FC<ScenePreviewProps> = ({ sceneData, onClose, previewVideoUrl }) => {
   const [showDiscussion, setShowDiscussion] = useState(false);
   const [sceneResponses, setSceneResponses] = useState<Array<{ questionId: string; answer: string; isCorrect: boolean; score?: number }>>([]);
   const [allQuestionsSubmitted, setAllQuestionsSubmitted] = useState(false);
   const [isSceneCompleted, setIsSceneCompleted] = useState(false);
+  const resolvedVideoUrl = previewVideoUrl || sceneData.videoUrl;
 
   const handleQuizAnswered = (responses: Array<{ questionId: string; answer: string; isCorrect: boolean; score?: number }>) => {
     setSceneResponses(responses);
@@ -84,6 +87,7 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({ sceneData, onClose }) => {
               scene={sceneData}
               layoutConfig={sceneData.layoutConfig}
               sceneId={sceneData.id}
+              videoUrl={resolvedVideoUrl}
               isPreview={true}
               onQuizAnswered={handleQuizAnswered}
               onContinueToDiscussion={handleContinueToDiscussion}
@@ -122,13 +126,15 @@ const ScenePreview: React.FC<ScenePreviewProps> = ({ sceneData, onClose }) => {
                   {/* Content Section */}
                   {sceneData.id !== '9' && (
                     <div className="flex flex-col space-y-2 h-full min-h-0 overflow-hidden lg:col-span-3">
-                      {/* Video Placeholder */}
-                      <div className="rounded-lg overflow-hidden bg-black/50 backdrop-blur-xl border border-white/20 flex-1 min-h-0 flex items-center justify-center">
-                        <div className="text-white text-center p-8">
-                          <div className="text-6xl mb-4">🎬</div>
-                          <p className="text-lg font-semibold mb-2">Video Content Area</p>
-                          <p className="text-sm text-gray-300">This is where the scene video/interactive content would appear</p>
-                        </div>
+                      <div className="flex-1 min-h-0 overflow-hidden">
+                        {renderSceneComponent({
+                          type: 'video-player',
+                          scene: sceneData,
+                          sceneId: sceneData.id,
+                          videoUrl: resolvedVideoUrl,
+                          videosLoading: false,
+                          isPreview: true,
+                        })}
                       </div>
 
                       {/* Clinical Findings */}

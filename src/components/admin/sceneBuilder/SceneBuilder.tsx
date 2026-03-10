@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import {
   X,
   Undo2,
@@ -96,6 +96,23 @@ function cloneLayoutComponents(components: SceneComponentLayout[]): SceneCompone
   return components.map(c => ({ ...c }));
 }
 
+function getPersistedContentPresence(sceneData: SceneData, videoUrl?: string): Record<string, boolean> {
+  const hasInteractiveContent =
+    !!(sceneData.quiz?.questions && sceneData.quiz.questions.length > 0) ||
+    !!sceneData.actionPrompt;
+
+  return {
+    'scene-header': !!sceneData.title?.trim(),
+    'video-player': !!videoUrl,
+    'vitals-monitor': true,
+    'clinical-findings': !!(sceneData.clinicalFindings && sceneData.clinicalFindings.length > 0),
+    'interactive-panel': hasInteractiveContent,
+    'quiz-panel': !!(sceneData.quiz?.questions && sceneData.quiz.questions.length > 0),
+    'action-prompt': !!sceneData.actionPrompt,
+    'audio-player': false,
+  };
+}
+
 // ─── SceneBuilder ─────────────────────────────────────────────────────────────
 
 const SceneBuilder: React.FC<SceneBuilderProps> = ({
@@ -105,9 +122,10 @@ const SceneBuilder: React.FC<SceneBuilderProps> = ({
   instanceId,
   initialMode = 'canvas',
 }) => {
-  const { uploadVideo, saveStreamVideo } = useVideoData();
+  const { videos, uploadVideo, saveStreamVideo } = useVideoData(instanceId);
 
   const initialLayout = normalizeSceneLayoutConfig(scene.layoutConfig || defaultSceneLayoutConfig);
+  const initialPersistedDataPresence = getPersistedContentPresence(scene, scene.videoUrl);
   const initialEntry: HistoryEntry = {
     sceneData: {
       ...scene,
@@ -119,6 +137,23 @@ const SceneBuilder: React.FC<SceneBuilderProps> = ({
   const { current, push, undo, redo, markSaved, canUndo, canRedo, isDirty } =
     useHistory(initialEntry);
   const { sceneData, layoutComponents } = current;
+  const numericSceneId = Number.parseInt(sceneData.id || scene.id, 10);
+  const persistedSceneVideo = useMemo(
+    () => videos.find(video => video.scene_id === numericSceneId),
+    [videos, numericSceneId],
+  );
+  const resolvedStoredVideoUrl =
+    sceneData.videoUrl || persistedSceneVideo?.video_url || scene.videoUrl || undefined;
+  const resolvedStoredPosterUrl =
+    sceneData.posterUrl || persistedSceneVideo?.poster_url || scene.posterUrl || undefined;
+  const resolvedSceneData = useMemo(
+    () => ({
+      ...sceneData,
+      videoUrl: resolvedStoredVideoUrl || sceneData.videoUrl,
+      posterUrl: resolvedStoredPosterUrl || sceneData.posterUrl,
+    }),
+    [sceneData, resolvedStoredVideoUrl, resolvedStoredPosterUrl],
+  );
 
   // ── UI state ────────────────────────────────────────────────────────────────
   const [mode, setMode] = useState<'builder' | 'canvas'>(initialMode);
@@ -136,8 +171,16 @@ const SceneBuilder: React.FC<SceneBuilderProps> = ({
   const [showPreview, setShowPreview] = useState(false);
   const [panelCollapsed, setPanelCollapsed] = useState(false);
 
-  // Track components manually disabled by user in Canvas to avoid re-enabling them
-  const manuallyDisabledRef = useRef<Set<string>>(new Set());
+  // Track components manually disabled by user in Canvas to avoid re-enabling them.
+  // Seed with already-disabled populated components so opening an existing scene
+  // doesn't count as a new unsaved auto-enable.
+  const manuallyDisabledRef = useRef<Set<string>>(
+    new Set(
+      initialLayout
+        .filter(comp => !comp.enabled && initialPersistedDataPresence[comp.type])
+        .map(comp => comp.id),
+    ),
+  );
 
   const [videoEmbed, setVideoEmbed] = useState<VideoEmbedValue>({
     sourceType: scene.videoSourceType === 'stream' ? 'stream' : 'upload',
@@ -189,7 +232,7 @@ const SceneBuilder: React.FC<SceneBuilderProps> = ({
       }
       return previewVideoUrlRef.current;
     }
-    return sceneData.videoUrl || undefined;
+    return resolvedStoredVideoUrl;
   })();
 
   // Clean up blob URL when file changes
@@ -202,6 +245,18 @@ const SceneBuilder: React.FC<SceneBuilderProps> = ({
     };
   }, [videoEmbed.file]);
 
+  // If a persisted video URL resolves after mount, preserve the saved disabled state
+  // instead of auto-enabling the video component and flagging the scene as dirty.
+  useEffect(() => {
+    if (!resolvedStoredVideoUrl || isDirty || videoEmbed.file || videoEmbed.streamUrl) return;
+
+    layoutComponents.forEach(comp => {
+      if (comp.type === 'video-player' && !comp.enabled) {
+        manuallyDisabledRef.current.add(comp.id);
+      }
+    });
+  }, [layoutComponents, resolvedStoredVideoUrl, isDirty, videoEmbed.file, videoEmbed.streamUrl]);
+
   // ── Auto-sync: enable canvas components when builder content is configured ──
   useEffect(() => {
     const hasInteractiveContent =
@@ -210,7 +265,7 @@ const SceneBuilder: React.FC<SceneBuilderProps> = ({
 
     const dataPresence: Record<string, boolean> = {
       'scene-header': !!(sceneData.title?.trim()),
-      'video-player': !!(sceneData.videoUrl || videoEmbed.file || videoEmbed.streamUrl),
+      'video-player': !!(resolvedStoredVideoUrl || videoEmbed.file || videoEmbed.streamUrl),
       'vitals-monitor': true,
       'clinical-findings': !!(sceneData.clinicalFindings && sceneData.clinicalFindings.length > 0),
       'interactive-panel': hasInteractiveContent,
@@ -229,7 +284,7 @@ const SceneBuilder: React.FC<SceneBuilderProps> = ({
     if (changed) {
       push({ sceneData, layoutComponents: nextLayout });
     }
-  }, [sceneData, videoEmbed]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [sceneData, videoEmbed, resolvedStoredVideoUrl]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── Mutation helpers ─────────────────────────────────────────────────────────
 
@@ -446,7 +501,7 @@ const SceneBuilder: React.FC<SceneBuilderProps> = ({
 
   // Shared props object for configurator-aware sub-components
   const configuratorProps = {
-    sceneData,
+    sceneData: resolvedSceneData,
     videoEmbed,
     onSceneDataChange: updateScene,
     onVitalsChange: updateVitals,
@@ -463,7 +518,8 @@ const SceneBuilder: React.FC<SceneBuilderProps> = ({
   if (showPreview) {
     return (
       <ScenePreview
-        sceneData={{ ...sceneData, layoutConfig: { components: layoutComponents } }}
+        sceneData={{ ...resolvedSceneData, layoutConfig: { components: layoutComponents } }}
+        previewVideoUrl={effectiveVideoUrl}
         onClose={() => setShowPreview(false)}
       />
     );
@@ -606,7 +662,7 @@ const SceneBuilder: React.FC<SceneBuilderProps> = ({
             </div>
 
             <BuilderCanvas
-              sceneData={sceneData}
+              sceneData={resolvedSceneData}
               components={layoutComponents}
               selectedComponentId={selectedComponentId}
               onSelectComponent={setSelectedComponentId}

@@ -48,6 +48,7 @@ const VideoEmbedInput: React.FC<VideoEmbedInputProps> = ({
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
     const [dragOver, setDragOver] = useState(false);
     const fileInputRef = useRef<HTMLInputElement>(null);
+    const hasExistingUploadVideo = value.sourceType === 'upload' && !!existingVideoUrl && !value.file;
 
     // Create preview URL for uploaded files
     useEffect(() => {
@@ -172,6 +173,16 @@ const VideoEmbedInput: React.FC<VideoEmbedInputProps> = ({
                                     <X className="w-4 h-4" />
                                 </button>
                             </div>
+                        ) : hasExistingUploadVideo ? (
+                            <div>
+                                <CheckCircle2 className="w-8 h-8 text-green-500 mx-auto mb-2" />
+                                <p className="text-sm font-medium text-gray-700">
+                                    Current saved video is attached
+                                </p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Drop a new file here or browse only if you want to replace it
+                                </p>
+                            </div>
                         ) : (
                             <div>
                                 <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
@@ -187,6 +198,20 @@ const VideoEmbedInput: React.FC<VideoEmbedInputProps> = ({
                     {previewUrl && (
                         <div className="bg-black rounded-lg overflow-hidden aspect-video">
                             <video controls className="w-full h-full" src={previewUrl} />
+                        </div>
+                    )}
+
+                    {!previewUrl && hasExistingUploadVideo && existingVideoUrl && (
+                        <div className="rounded-lg border border-gray-200 overflow-hidden bg-black">
+                            <div className="aspect-video">
+                                <video controls className="w-full h-full" src={existingVideoUrl} />
+                            </div>
+                            <div className="p-3 bg-gray-50 border-t border-gray-200">
+                                <p className="text-sm font-medium text-gray-800">Current saved video</p>
+                                <p className="text-xs text-gray-500 mt-1">
+                                    Upload a new file only if you want to replace this saved video.
+                                </p>
+                            </div>
                         </div>
                     )}
                 </div>
@@ -266,7 +291,7 @@ const VideoEmbedInput: React.FC<VideoEmbedInputProps> = ({
             )}
 
             {/* Existing Video Indicator */}
-            {existingVideoUrl && !value.file && !value.streamUrl && (
+            {existingVideoUrl && !value.file && !value.streamUrl && value.sourceType !== 'upload' && (
                 <div className="flex items-center gap-2 p-3 bg-gray-50 border border-gray-200 rounded-lg">
                     <Play className="w-4 h-4 text-gray-500" />
                     <span className="text-sm text-gray-600">

@@ -177,6 +177,16 @@ export function renderSceneComponent({
         );
       }
 
+      // In admin preview mode, always surface the actual uploaded/stream video
+      // when one exists, even if runtime scene logic would show alternate content.
+      if (isPreview && videoUrl) {
+        return (
+          <div className="w-full h-full rounded-lg overflow-hidden bg-black/50 border border-white/20 flex flex-col min-h-0">
+            <VideoPlayer videoUrl={videoUrl} poster={scene.posterUrl} />
+          </div>
+        );
+      }
+
       if (scene.iframeUrl) {
         return (
           <div className="w-full h-full rounded-lg overflow-hidden bg-black/50 border border-white/20 flex flex-col min-h-0">
