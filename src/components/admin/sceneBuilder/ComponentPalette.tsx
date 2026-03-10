@@ -14,7 +14,7 @@ import {
   LayoutGrid,
 } from 'lucide-react';
 import { SceneComponentLayout, SceneComponentType, SceneData } from '../../../data/scenesData';
-import { COMPONENT_REGISTRY, COMPONENT_ORDER, getDefaultLayout } from './componentRegistry';
+import { COMPONENT_REGISTRY, COMPONENT_ORDER } from './componentRegistry';
 
 interface ComponentPaletteProps {
   sceneData: SceneData;
@@ -47,7 +47,6 @@ const TYPE_COLORS: Record<SceneComponentType, string> = {
 };
 
 function ComponentPalette({
-  sceneData,
   components,
   selectedComponentId,
   onSelectComponent,

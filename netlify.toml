@@ -1,6 +1,10 @@
 # Netlify Configuration for SCD Simulation Project
 
 [build]
+  # Build from the repo root — this explicitly overrides any base directory
+  # set in the Netlify UI, preventing "project/" resolution issues.
+  base = ""
+
   # The directory containing the built files to deploy
   publish = "dist"
   

@@ -164,8 +164,8 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
         !!actionPrompt.correctAnswers &&
         !!actionPrompt.options &&
         actionPrompt.options.every(opt => actionPrompt.correctAnswers!.includes(opt));
-      const partialScore = isAllCorrectScenario && actionPrompt.options.length > 0
-        ? actionResponse.filter(ans => actionPrompt.correctAnswers!.includes(ans)).length / actionPrompt.options.length
+      const partialScore = isAllCorrectScenario && (actionPrompt.options?.length ?? 0) > 0
+        ? actionResponse.filter(ans => actionPrompt.correctAnswers!.includes(ans)).length / (actionPrompt.options?.length ?? 1)
         : undefined;
       const isCorrect = actionPrompt.correctAnswers ?
         actionResponse.length === actionPrompt.correctAnswers.length &&
@@ -634,24 +634,23 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
                             ? "bg-green-500/20 border-green-400 text-green-100"
                             : "bg-amber-500/10 border-amber-400/50 text-amber-200";
                         } else {
-                        // Standard scenes: preserve what the user actually selected.
-                        // Show their choices, then surface the correct answers separately
-                        // in the feedback card below.
-                        if (wasSelected) {
-                          buttonClass += isCorrectOption
-                            ? "bg-green-500/20 border-green-400 text-green-100"
-                            : "bg-red-500/20 border-red-400 text-red-100";
-                        } else {
-                          buttonClass += "bg-slate-700/30 border-slate-600 text-gray-400";
-                        }
+                          // Standard scenes: preserve what the user actually selected.
+                          // Show their choices, then surface the correct answers separately
+                          // in the feedback card below.
+                          if (wasSelected) {
+                            buttonClass += isCorrectOption
+                              ? "bg-green-500/20 border-green-400 text-green-100"
+                              : "bg-red-500/20 border-red-400 text-red-100";
+                          } else {
+                            buttonClass += "bg-slate-700/30 border-slate-600 text-gray-400";
+                          }
                         }
 
                         return (
                           <div key={index} className={buttonClass}>
                             <div className="flex items-center gap-2">
                               {actionPrompt.type === 'multi-select' && (
-                                <div className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-all ${
-                                  isAllCorrectScenario
+                                <div className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-all ${isAllCorrectScenario
                                     ? wasSelected
                                       ? 'bg-green-400 border-green-400'
                                       : 'border-amber-400/60 bg-transparent'
@@ -660,7 +659,7 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
                                         ? 'bg-green-400 border-green-400'
                                         : 'bg-red-400 border-red-400'
                                       : 'border-slate-500 bg-transparent'
-                                }`}>
+                                  }`}>
                                   {isAllCorrectScenario
                                     ? wasSelected && <Check className="w-3 h-3 text-slate-900" />
                                     : wasSelected && <Check className="w-3 h-3 text-slate-900" />}
@@ -794,20 +793,19 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
                     : 0;
                   const isCorrect = actionPrompt.type === 'multi-select'
                     ? Array.isArray(actionPrompt.correctAnswers) &&
-                      selectedOptions.length === actionPrompt.correctAnswers.length &&
-                      selectedOptions.every(ans => actionPrompt.correctAnswers!.includes(ans)) &&
-                      actionPrompt.correctAnswers.every(ans => selectedOptions.includes(ans))
+                    selectedOptions.length === actionPrompt.correctAnswers.length &&
+                    selectedOptions.every(ans => actionPrompt.correctAnswers!.includes(ans)) &&
+                    actionPrompt.correctAnswers.every(ans => selectedOptions.includes(ans))
                     : actionPrompt.correctAnswers?.includes(actionResponse as string);
                   const isPartialMultiSelect = actionPrompt.type === 'multi-select' && !isCorrect && selectedCorrectCount > 0;
 
                   return (
-                    <div className={`p-3 rounded-lg border-l-4 shadow-lg animate-fade-in ${
-                      isCorrect
+                    <div className={`p-3 rounded-lg border-l-4 shadow-lg animate-fade-in ${isCorrect
                         ? 'bg-green-500/20 border-green-400 shadow-green-500/20'
                         : isPartialMultiSelect
                           ? 'bg-amber-500/15 border-amber-400 shadow-amber-500/20'
                           : 'bg-red-500/20 border-red-400 shadow-red-500/20'
-                    }`}>
+                      }`}>
                       <div className="flex items-center gap-2 mb-2">
                         <Sparkles className={`w-3 h-3 ${isCorrect ? 'text-green-400' : isPartialMultiSelect ? 'text-amber-400' : 'text-red-400'}`} />
                         {isCorrect
@@ -1069,20 +1067,20 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
           <>
             {/* For scenes WITHOUT discussion prompts - show after assessment */}
             {!hasDiscussionPrompts && (allQuestionsSubmitted || actionSubmitted || allQuestionsAnswered) && (
-                <button
-                  onClick={onCompleteScene}
-                  className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-sm
+              <button
+                onClick={onCompleteScene}
+                className="w-full py-2 px-3 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-sm
                          hover:from-green-400 hover:to-emerald-400 transition-all duration-200 
                          flex items-center justify-center gap-2 shadow-lg hover:shadow-xl transform hover:scale-105"
-                >
-                  <Check className="w-3 h-3" />
-                  Complete {(() => {
-                    const sceneNumber = parseInt(sceneId);
-                    const scene = scenes[sceneNumber - 1];
-                    return scene?.title?.replace(/^Scene \d+:\s*/, '') || `Scene ${sceneNumber}`;
-                  })()}
-                </button>
-              )}
+              >
+                <Check className="w-3 h-3" />
+                Complete {(() => {
+                  const sceneNumber = parseInt(sceneId);
+                  const scene = scenes[sceneNumber - 1];
+                  return scene?.title?.replace(/^Scene \d+:\s*/, '') || `Scene ${sceneNumber}`;
+                })()}
+              </button>
+            )}
 
             {/* For scenes WITH discussion prompts - show after discussion is displayed */}
             {hasDiscussionPrompts && showDiscussion && (

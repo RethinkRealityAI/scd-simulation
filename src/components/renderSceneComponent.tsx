@@ -119,7 +119,7 @@ export function renderSceneComponent({
   videoUrl,
   videosLoading,
   isPreview = false,
-  interactiveVariant = 'combined',
+  interactiveVariant: _interactiveVariant = 'combined',
   suppressCompletionControls = false,
   sceneAudioFiles = [],
   currentPlayingAudio = null,

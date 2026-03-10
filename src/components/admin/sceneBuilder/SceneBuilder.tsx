@@ -176,9 +176,9 @@ const SceneBuilder: React.FC<SceneBuilderProps> = ({
   // doesn't count as a new unsaved auto-enable.
   const manuallyDisabledRef = useRef<Set<string>>(
     new Set(
-      initialLayout
-        .filter(comp => !comp.enabled && initialPersistedDataPresence[comp.type])
-        .map(comp => comp.id),
+      initialLayout.components
+        .filter((comp: SceneComponentLayout) => !comp.enabled && initialPersistedDataPresence[comp.type])
+        .map((comp: SceneComponentLayout) => comp.id),
     ),
   );
 
