@@ -121,6 +121,9 @@ const AdminAccountPanel: React.FC = () => {
         <p className="text-sm text-gray-500 mt-0.5">
           View your admin account details and change your password.
         </p>
+        <p className="text-xs text-gray-400 mt-1 font-mono" title="Use this to confirm local and production use the same backend">
+          Backend: {import.meta.env.VITE_SUPABASE_URL ?? 'not set'}
+        </p>
       </div>
 
       {error && (

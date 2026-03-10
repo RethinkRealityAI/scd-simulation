@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Save,
@@ -54,29 +54,54 @@ const SCORING_CATEGORIES = [
   { value: 'biasMitigation', label: 'Bias Mitigation' },
 ];
 
-const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onClose, instanceId }) => {
-  const { uploadVideo, saveStreamVideo } = useVideoData();
-  const [editedScene, setEditedScene] = useState<SceneData>(scene);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<TabId>('basic');
-  const [showPreview, setShowPreview] = useState(false);
-  const [videoEmbed, setVideoEmbed] = useState<VideoEmbedValue>({
+function createSceneEditorVideoState(scene: SceneData): VideoEmbedValue {
+  return {
     sourceType: scene.videoSourceType === 'stream' ? 'stream' : 'upload',
     file: null,
     streamUrl: scene.streamUrl || '',
     parsed: scene.streamUrl ? parseVideoUrl(scene.streamUrl) : null,
     title: '',
     description: '',
-  });
+  };
+}
+
+function normalizeSceneForDirtyCheck(scene: SceneData): SceneData {
+  return {
+    ...scene,
+    vitalsDisplayConfig: scene.vitalsDisplayConfig || { ...defaultVitalsDisplayConfig },
+  };
+}
+
+const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onClose, instanceId }) => {
+  const { uploadVideo, saveStreamVideo } = useVideoData();
+  const [editedScene, setEditedScene] = useState<SceneData>(normalizeSceneForDirtyCheck(scene));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<TabId>('basic');
+  const [showPreview, setShowPreview] = useState(false);
+  const [videoEmbed, setVideoEmbed] = useState<VideoEmbedValue>(createSceneEditorVideoState(scene));
   const [uploadedPreviewVideoUrl, setUploadedPreviewVideoUrl] = useState<string | null>(null);
+  const normalizedInitialScene = useMemo(() => normalizeSceneForDirtyCheck(scene), [scene]);
+  const initialVideoEmbed = useMemo(() => createSceneEditorVideoState(scene), [scene]);
 
   useEffect(() => {
-    setEditedScene({
-      ...scene,
-      vitalsDisplayConfig: scene.vitalsDisplayConfig || { ...defaultVitalsDisplayConfig },
-    });
-  }, [scene]);
+    setEditedScene(normalizedInitialScene);
+    setVideoEmbed(initialVideoEmbed);
+    setActiveTab('basic');
+    setShowPreview(false);
+    setError(null);
+    setUploadedPreviewVideoUrl(null);
+  }, [normalizedInitialScene, initialVideoEmbed]);
+
+  const isDirty = useMemo(() => {
+    const hasSceneChanges = JSON.stringify(editedScene) !== JSON.stringify(normalizedInitialScene);
+    const hasVideoChanges =
+      videoEmbed.sourceType !== initialVideoEmbed.sourceType ||
+      (videoEmbed.streamUrl || '') !== (initialVideoEmbed.streamUrl || '') ||
+      Boolean(videoEmbed.file);
+
+    return hasSceneChanges || hasVideoChanges;
+  }, [editedScene, normalizedInitialScene, videoEmbed.sourceType, videoEmbed.streamUrl, videoEmbed.file, initialVideoEmbed.sourceType, initialVideoEmbed.streamUrl]);
 
   useEffect(() => {
     if (!videoEmbed.file) {
@@ -99,6 +124,11 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
         ? uploadedPreviewVideoUrl || editedScene.videoUrl || undefined
         : editedScene.videoUrl || undefined;
   const existingSavedVideoUrl = editedScene.videoUrl || scene.videoUrl || undefined;
+
+  const handleClose = () => {
+    if (isDirty && !window.confirm('You have unsaved changes. Close without saving?')) return;
+    onClose();
+  };
 
   const handleSave = async () => {
     try {
@@ -238,7 +268,7 @@ const SceneEditorModal: React.FC<SceneEditorModalProps> = ({ scene, onSave, onCl
               {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
               {saving ? 'Saving…' : 'Save'}
             </button>
-            <button onClick={onClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">
+            <button onClick={handleClose} className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">
               <X className="w-5 h-5" />
             </button>
           </div>
