@@ -6,9 +6,6 @@
   
   # The build command to run
   command = "npm run build"
-  
-  # Base directory for the build (important: this is the project folder)
-  base = "project"
 
 [build.environment]
   # Node version to use

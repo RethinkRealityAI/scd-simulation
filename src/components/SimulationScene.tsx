@@ -18,7 +18,7 @@ import { ChevronLeft, ChevronRight, Clock, RefreshCw, Share2 } from 'lucide-reac
 const SimulationScene: React.FC = () => {
   const { sceneId } = useParams<{ sceneId: string }>();
   const navigate = useNavigate();
-  const { state, dispatch, sendDataToWebhook } = useSimulation();
+  const { state, dispatch, calculateScore, sendDataToWebhook } = useSimulation();
   const { videos, loading: videosLoading, refetch: refetchVideos } = useVideoData();
   const { getAudioFilesByScene } = useAudioData();
   const [sceneStartTime, setSceneStartTime] = useState(Date.now());
@@ -377,7 +377,7 @@ const SimulationScene: React.FC = () => {
                           <button
                             onClick={() => {
                               const results = {
-                                score: state.userData.responses.filter(r => r.isCorrect).length / state.userData.responses.length * 100,
+                                score: calculateScore(),
                                 completionTime: Date.now() - state.userData.startTime,
                                 responses: state.userData.responses.length
                               };

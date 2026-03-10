@@ -60,11 +60,14 @@ const AdminRoute: React.FC = () => {
           if (cancelled) return;
 
           if (bootstrapError) {
+            const bootstrapMessage =
+              typeof bootstrapError.message === 'string' ? bootstrapError.message : null;
+
             setHasAdminAccess(false);
             setAdminCheckError(
-              bootstrapError.message.includes('bootstrap_first_admin')
+              bootstrapMessage?.includes('bootstrap_first_admin')
                 ? 'Admin bootstrap is not configured in the database yet. Run the latest Supabase SQL migration first.'
-                : bootstrapError.message,
+                : bootstrapMessage ?? 'Failed to initialize admin access.',
             );
           } else {
             setHasAdminAccess(true);

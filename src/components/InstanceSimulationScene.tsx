@@ -19,7 +19,7 @@ import { useSceneOrdering } from '../hooks/useSceneOrdering';
 const InstanceSimulationScene: React.FC = () => {
   const { sceneId, institutionId } = useParams<{ sceneId: string; institutionId: string }>();
   const navigate = useNavigate();
-  const { state, dispatch, sendDataToWebhook } = useInstanceSimulation();
+  const { state, dispatch, calculateScore, sendDataToWebhook } = useInstanceSimulation();
   const [sceneStartTime] = useState(Date.now());
   const [sceneResponses, setSceneResponses] = useState<Array<{ questionId: string; answer: string; isCorrect: boolean; score?: number }>>([]);
   const [allQuestionsSubmitted, setAllQuestionsSubmitted] = useState(false);
@@ -36,7 +36,6 @@ const InstanceSimulationScene: React.FC = () => {
     getNextContentScene,
     getPreviousContentScene,
     getContentSceneIndex,
-    getFirstUnlockedContentScene,
     getAccessibleContentSceneIds,
     loading: orderLoading,
   } = useSceneOrdering(state.instance?.id);
@@ -48,7 +47,6 @@ const InstanceSimulationScene: React.FC = () => {
   const orderedSceneIds = contentScenes.map(item => item.scene_id);
   const completedSceneIds = Array.from(state.userData.completedScenes);
   const accessibleSceneIds = getAccessibleContentSceneIds(completedSceneIds);
-  const nextUnlockedSceneId = getFirstUnlockedContentScene(completedSceneIds) ?? orderedSceneIds[0] ?? null;
   const currentScenePosition = getContentSceneIndex(currentSceneNumber);
   const previousSceneIdForNav = getPreviousContentScene(currentSceneNumber);
   const nextSceneIdForNav = getNextContentScene(currentSceneNumber);
@@ -355,7 +353,7 @@ const InstanceSimulationScene: React.FC = () => {
                           <button
                             onClick={() => {
                               const results = {
-                                score: state.userData.responses.filter(r => r.isCorrect).length / state.userData.responses.length * 100,
+                                score: calculateScore(),
                                 completionTime: Date.now() - state.userData.startTime,
                                 responses: state.userData.responses.length
                               };
