@@ -9,12 +9,12 @@ import {
   ArrowUp,
   ArrowDown,
   Settings,
-  Save,
-  RefreshCw,
   Copy,
   HelpCircle,
   MessageSquare,
   FileText,
+  CheckCircle,
+  AlertCircle,
 } from 'lucide-react';
 import { SceneData, defaultSceneLayoutConfig, defaultVitalsDisplayConfig } from '../../data/scenesData';
 import { useSceneData } from '../../hooks/useSceneData';
@@ -57,7 +57,7 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
     canAddMoreScenes
   } = useSceneOrdering(instanceId);
 
-  const EDITOR_STATE_KEY = 'smd-editor-state';
+  const editorStateKey = `smd-editor-state:${instanceId || 'base'}`;
 
   const [scenes, setScenes] = useState<SceneData[]>([]);
 
@@ -68,8 +68,13 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
   const [showPreview, setShowPreview] = useState(false);
   const restoredEditorRef = React.useRef(false);
   const [draggedScene, setDraggedScene] = useState<number | null>(null);
-  const [saving, setSaving] = useState(false);
   const [duplicating, setDuplicating] = useState<number | null>(null);
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' = 'success') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
   const [confirmDialog, setConfirmDialog] = useState<{
     title: string;
     message: string;
@@ -126,12 +131,18 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
     setScenes(allScenes);
   }, [allScenes]);
 
+  useEffect(() => {
+    restoredEditorRef.current = false;
+    setShowEditor(false);
+    setSelectedScene(null);
+  }, [instanceId]);
+
   // Restore editor state after scenes have loaded (only once)
   useEffect(() => {
     if (restoredEditorRef.current || allScenes.length === 0) return;
     restoredEditorRef.current = true;
     try {
-      const raw = sessionStorage.getItem(EDITOR_STATE_KEY);
+      const raw = sessionStorage.getItem(editorStateKey);
       if (!raw) return;
       const stored = JSON.parse(raw) as { sceneId?: string; mode?: 'builder' | 'canvas' };
       if (!stored.sceneId) return;
@@ -148,24 +159,24 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
   useEffect(() => {
     try {
       if (showEditor && selectedScene) {
-        sessionStorage.setItem(EDITOR_STATE_KEY, JSON.stringify({
+        sessionStorage.setItem(editorStateKey, JSON.stringify({
           sceneId: selectedScene.id,
           mode: initialBuilderMode,
         }));
       } else {
-        sessionStorage.removeItem(EDITOR_STATE_KEY);
+        sessionStorage.removeItem(editorStateKey);
       }
     } catch { /* quota errors etc */ }
-  }, [showEditor, selectedScene, initialBuilderMode]);
+  }, [showEditor, selectedScene, initialBuilderMode, editorStateKey]);
 
   const handleCreateNewScene = () => {
     if (!canAddMoreScenes()) {
-      alert('Maximum number of scenes reached. Cannot create more scenes.');
+      showToast('Maximum number of scenes reached. Cannot create more scenes.', 'error');
       return;
     }
     const newId = getNextAvailableSceneId();
     if (newId > 20) {
-      alert('No available scene IDs. Maximum of 20 scenes allowed.');
+      showToast('No available scene IDs. Maximum of 20 scenes allowed.', 'error');
       return;
     }
     setInitialBuilderMode('builder');
@@ -202,14 +213,13 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
 
   const handleDuplicateScene = async (scene: SceneData) => {
     if (!canAddMoreScenes()) {
-      alert('Maximum number of scenes reached. Cannot duplicate scene.');
+      showToast('Maximum number of scenes reached. Cannot duplicate scene.', 'error');
       return;
     }
 
     setDuplicating(parseInt(scene.id));
 
     try {
-      // Find the next available scene ID
       const existingIds = scenes.map(s => parseInt(s.id));
       let newId = 1;
       while (existingIds.includes(newId)) {
@@ -217,11 +227,10 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
       }
 
       if (newId > 20) {
-        alert('No available scene IDs. Maximum of 20 scenes allowed.');
+        showToast('No available scene IDs. Maximum of 20 scenes allowed.', 'error');
         return;
       }
 
-      // Create a duplicate scene with new ID
       const duplicatedScene: SceneData = {
         ...scene,
         id: newId.toString(),
@@ -229,18 +238,17 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
         description: `${scene.description} - Duplicated from Scene ${scene.id}`
       };
 
-      // Save the duplicated scene
       const success = await saveSceneConfiguration(duplicatedScene, instanceId);
       if (success) {
         setScenes(prev => [...prev, duplicatedScene]);
         await addSceneToOrder(newId, instanceId);
-        alert(`Scene duplicated successfully as Scene ${newId}!`);
+        showToast(`Scene duplicated successfully as Scene ${newId}!`);
       } else {
-        alert('Failed to duplicate scene. Please try again.');
+        showToast('Failed to duplicate scene. Please try again.', 'error');
       }
     } catch (error) {
       console.error('Error duplicating scene:', error);
-      alert('Failed to duplicate scene. Please try again.');
+      showToast('Failed to duplicate scene. Please try again.', 'error');
     } finally {
       setDuplicating(null);
     }
@@ -321,19 +329,6 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
     }
   };
 
-  const handleSaveOrder = async () => {
-    setSaving(true);
-    try {
-      // Order is automatically saved when changes are made
-      alert('Scene order saved successfully!');
-    } catch (error) {
-      console.error('Error saving scene order:', error);
-      alert('Failed to save scene order. Please try again.');
-    } finally {
-      setSaving(false);
-    }
-  };
-
   const sortedScenes = getOrderedScenes()
     .map(orderItem => scenes.find(s => parseInt(s.id) === orderItem.scene_id))
     .filter(Boolean) as SceneData[];
@@ -348,6 +343,17 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
 
   return (
     <div className="bg-white rounded-xl shadow-sm w-full max-h-[90vh] overflow-hidden border border-gray-200">
+      {/* Toast notification */}
+      {toast && (
+        <div className={`fixed bottom-5 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl shadow-lg text-sm font-medium ${
+          toast.type === 'success' ? 'bg-slate-900 text-white' : 'bg-red-600 text-white'
+        }`}>
+          {toast.type === 'success'
+            ? <CheckCircle className="w-4 h-4 text-emerald-400 flex-shrink-0" />
+            : <AlertCircle className="w-4 h-4 flex-shrink-0" />}
+          {toast.message}
+        </div>
+      )}
       {/* Compact Header */}
       <div className="flex items-center justify-between px-4 py-2.5 border-b border-gray-200 bg-white">
         <div className="flex items-center gap-3">
@@ -360,14 +366,6 @@ const SceneManagementDashboard: React.FC<SceneManagementDashboardProps> = ({ onC
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={handleSaveOrder}
-            disabled={saving}
-            className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 disabled:opacity-50"
-          >
-            {saving ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-            Save Order
-          </button>
           <button
             onClick={handleCreateNewScene}
             disabled={!canAddMoreScenes()}

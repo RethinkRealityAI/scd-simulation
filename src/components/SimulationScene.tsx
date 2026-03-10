@@ -12,6 +12,7 @@ import { useAudioData } from '../hooks/useAudioData';
 import ProgressBar from './ProgressBar';
 import { useVideoData } from '../hooks/useVideoData';
 import { useSceneConfig } from '../hooks/useSceneConfig';
+import { useSceneOrdering } from '../hooks/useSceneOrdering';
 import { ChevronLeft, ChevronRight, Clock, RefreshCw, Share2 } from 'lucide-react';
 
 const SimulationScene: React.FC = () => {
@@ -22,12 +23,24 @@ const SimulationScene: React.FC = () => {
   const { getAudioFilesByScene } = useAudioData();
   const [sceneStartTime, setSceneStartTime] = useState(Date.now());
   const [showDiscussion, setShowDiscussion] = useState(false);
-  const [sceneResponses, setSceneResponses] = useState<Array<{ questionId: string; answer: string; isCorrect: boolean }>>([]);
+  const [sceneResponses, setSceneResponses] = useState<Array<{ questionId: string; answer: string; isCorrect: boolean; score?: number }>>([]);
   const [allQuestionsSubmitted, setAllQuestionsSubmitted] = useState(false);
   const [currentPlayingAudio, setCurrentPlayingAudio] = useState<number | null>(null);
   const [previousSceneId, setPreviousSceneId] = useState<string | null>(null);
 
   const currentSceneNumber = parseInt(sceneId || '1');
+
+  // Load scene ordering to determine the dynamic completion scene and total content scenes
+  const {
+    getCompletionScene,
+    getContentScenes,
+    getNextContentScene,
+    getPreviousContentScene,
+    getContentSceneIndex,
+    getFirstUnlockedContentScene,
+    getAccessibleContentSceneIds,
+    loading: orderLoading,
+  } = useSceneOrdering();
 
   // Load scene configuration from database (with static fallback)
   const { sceneData: scene, loading: sceneLoading } = useSceneConfig(currentSceneNumber);
@@ -39,25 +52,38 @@ const SimulationScene: React.FC = () => {
   // Get audio files for this scene
   const sceneAudioFiles = getAudioFilesByScene(currentSceneNumber);
 
-  // Calculate accessible scenes: completed scenes + current scene
-  const completedScenes = Array.from(state.userData.completedScenes);
-  const maxCompletedScene = completedScenes.length > 0 ? Math.max(...completedScenes) : 0;
-  const maxAccessibleScene = Math.max(maxCompletedScene + 1, 1); // At least scene 1 is always accessible
-  const canAccessScene = currentSceneNumber <= maxAccessibleScene;
-
   // Check if current scene is completed
   const isCurrentSceneCompleted = state.userData.completedScenes.has(currentSceneNumber);
 
-  // Check if this is the completion scene (Scene 10)
-  const isCompletionScene = currentSceneNumber === 10;
+  // Determine the completion scene from DB ordering (fallback: scene 10)
+  const completionSceneItem = getCompletionScene();
+  const completionSceneNumber = completionSceneItem?.scene_id ?? 10;
+  const isCompletionScene = currentSceneNumber === completionSceneNumber;
 
-  // Redirect to completion screen if this is scene 10
+  // Content scenes: active, non-completion scenes in display order
+  const contentScenes = getContentScenes();
+  const orderedSceneIds = contentScenes.map(item => item.scene_id);
+  const completedSceneIds = Array.from(state.userData.completedScenes);
+  const accessibleSceneIds = getAccessibleContentSceneIds(completedSceneIds);
+  const nextUnlockedSceneId = getFirstUnlockedContentScene(completedSceneIds) ?? orderedSceneIds[0] ?? null;
+  const currentScenePosition = getContentSceneIndex(currentSceneNumber);
+  const previousSceneIdForNav = getPreviousContentScene(currentSceneNumber);
+  const nextSceneIdForNav = getNextContentScene(currentSceneNumber);
+  const canAccessScene = isCompletionScene || accessibleSceneIds.includes(currentSceneNumber);
+
+  // Sync totalScenes from ordering data once loaded
   useEffect(() => {
-    if (isCompletionScene) {
-      navigate('/completion');
-      return;
+    if (!orderLoading && contentScenes.length > 0) {
+      dispatch({ type: 'SET_TOTAL_SCENES', payload: contentScenes.length });
     }
-  }, [isCompletionScene, navigate]);
+  }, [orderLoading, contentScenes.length, dispatch]);
+
+  // Redirect to completion screen if this is the completion scene
+  useEffect(() => {
+    if (!orderLoading && isCompletionScene) {
+      navigate('/completion');
+    }
+  }, [orderLoading, isCompletionScene, navigate]);
 
   // Handle audio auto-play sequence
   const handleAudioEnded = (currentIndex: number) => {
@@ -117,16 +143,16 @@ const SimulationScene: React.FC = () => {
     }
 
     // Redirect if user cannot access this scene
-    if (!canAccessScene) {
-      navigate(`/scene/${maxAccessibleScene}`);
+    if (!canAccessScene && nextUnlockedSceneId !== null) {
+      navigate(`/scene/${nextUnlockedSceneId}`);
       return;
     }
 
     dispatch({ type: 'SET_CURRENT_SCENE', payload: currentSceneNumber });
     setSceneStartTime(Date.now());
-  }, [sceneId, scene, sceneLoading, dispatch, navigate, currentSceneNumber, canAccessScene, maxAccessibleScene]);
+  }, [sceneId, scene, sceneLoading, dispatch, navigate, currentSceneNumber, canAccessScene, nextUnlockedSceneId]);
 
-  const handleQuizAnswered = (responses: Array<{ questionId: string; answer: string; isCorrect: boolean }>) => {
+  const handleQuizAnswered = (responses: Array<{ questionId: string; answer: string; isCorrect: boolean; score?: number }>) => {
     setSceneResponses(prev => {
       const merged = new Map(prev.map(r => [r.questionId, r]));
       responses.forEach(r => merged.set(r.questionId, r));
@@ -144,24 +170,29 @@ const SimulationScene: React.FC = () => {
   const handleCompleteScene = async () => {
     const timeSpent = Date.now() - sceneStartTime;
 
+    const pendingResponses = [...state.userData.responses];
+
     // Add responses to global state (only if not already added and responses exist)
     if (sceneResponses.length > 0) {
       sceneResponses.forEach(response => {
-        const existingResponse = state.userData.responses.find(
+        const existingResponse = pendingResponses.find(
           r => r.questionId === response.questionId && r.sceneId === sceneId
         );
 
         if (!existingResponse) {
+          const nextResponse = {
+            questionId: response.questionId,
+            sceneId: sceneId || '1',
+            answer: response.answer,
+            isCorrect: response.isCorrect,
+              score: response.score,
+            timeSpent,
+            timestamp: Date.now(),
+          };
+          pendingResponses.push(nextResponse);
           dispatch({
             type: 'ADD_RESPONSE',
-            payload: {
-              questionId: response.questionId,
-              sceneId: sceneId || '1',
-              answer: response.answer,
-              isCorrect: response.isCorrect,
-              timeSpent,
-              timestamp: Date.now(),
-            },
+            payload: nextResponse,
           });
         }
       });
@@ -172,15 +203,17 @@ const SimulationScene: React.FC = () => {
         sceneId: sceneId || '1',
         answer: 'Scene completed',
         isCorrect: true,
+        score: 1,
         timeSpent,
         timestamp: Date.now(),
       };
 
-      const existingResponse = state.userData.responses.find(
+      const existingResponse = pendingResponses.find(
         r => r.questionId === completionResponse.questionId && r.sceneId === sceneId
       );
 
       if (!existingResponse) {
+        pendingResponses.push(completionResponse);
         dispatch({
           type: 'ADD_RESPONSE',
           payload: completionResponse,
@@ -190,25 +223,28 @@ const SimulationScene: React.FC = () => {
 
     // Mark scene as completed
     dispatch({ type: 'COMPLETE_SCENE', payload: currentSceneNumber });
+    const pendingCompletedScenes = new Set([...state.userData.completedScenes, currentSceneNumber]);
 
-    console.log('Scene completed:', currentSceneNumber, 'Total completed:', state.userData.completedScenes.size + 1);
+    // Determine next scene from ordering system
+    const nextSceneId = getNextContentScene(currentSceneNumber);
+    const isLastScene = nextSceneId === null;
 
-    // If this is the last scene, automatically submit data
-    const isLastScene = currentSceneNumber >= state.userData.totalScenes;
+    // Submit data when completing the last content scene
     if (isLastScene) {
       try {
-        console.log('Last scene completed, automatically submitting data...');
-        await sendDataToWebhook();
-        console.log('Data submitted successfully');
+        await sendDataToWebhook({
+          responses: pendingResponses,
+          completedScenes: pendingCompletedScenes,
+        });
       } catch (error) {
         console.error('Failed to submit data automatically:', error);
         // Continue to results page even if submission fails
       }
     }
 
-    // Navigate to next scene or results
-    if (currentSceneNumber < state.userData.totalScenes) {
-      navigate(`/scene/${currentSceneNumber + 1}`);
+    // Navigate to next scene or completion
+    if (nextSceneId !== null) {
+      navigate(`/scene/${nextSceneId}`);
     } else {
       navigate('/completion');
     }
@@ -216,44 +252,38 @@ const SimulationScene: React.FC = () => {
 
   // Pure navigation functions (do not affect completion status)
   const handleNextScene = () => {
-    const nextScene = currentSceneNumber + 1;
-    const canAccessNext = nextScene <= maxAccessibleScene || isCurrentSceneCompleted;
-
-    console.log('Navigation check:', {
-      nextScene,
-      maxAccessibleScene,
-      isCurrentSceneCompleted,
-      canAccessNext,
-      totalScenes: state.userData.totalScenes
-    });
-
-    if (canAccessNext && nextScene <= state.userData.totalScenes) {
-      navigate(`/scene/${nextScene}`);
-    } else if (nextScene > state.userData.totalScenes) {
+    if (nextSceneIdForNav === null) {
       navigate('/completion');
+      return;
+    }
+    const canAccessNext = accessibleSceneIds.includes(nextSceneIdForNav) || isCurrentSceneCompleted;
+    if (canAccessNext) {
+      navigate(`/scene/${nextSceneIdForNav}`);
     }
   };
 
   const handlePreviousScene = () => {
-    if (currentSceneNumber > 1) {
-      navigate(`/scene/${currentSceneNumber - 1}`);
+    if (previousSceneIdForNav !== null) {
+      navigate(`/scene/${previousSceneIdForNav}`);
     }
   };
 
   // Navigation button states
-  const canGoNext = isCurrentSceneCompleted || currentSceneNumber < maxAccessibleScene;
-  const canGoPrevious = currentSceneNumber > 1;
+  const canGoNext = isCurrentSceneCompleted || (nextSceneIdForNav !== null && accessibleSceneIds.includes(nextSceneIdForNav));
+  const canGoPrevious = previousSceneIdForNav !== null;
 
-  // Show loading state while scene data is being fetched from database
-  if (sceneLoading || !scene) {
+  const [resultsCopied, setResultsCopied] = useState(false);
+
+  // Show loading state while scene data or order is being fetched
+  if (sceneLoading || orderLoading || !scene) {
     return (
       <div className="h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
         <div className="text-center">
-          {sceneLoading ? (
+          {(sceneLoading || orderLoading) ? (
             <>
               <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-purple-500 mx-auto mb-4"></div>
-              <div className="text-white text-xl font-semibold mb-2">Loading scene configuration...</div>
-              <div className="text-gray-400">Please wait while we load the latest data from database</div>
+              <div className="text-white text-xl font-semibold mb-2">Loading scene...</div>
+              <div className="text-gray-400">Please wait while we load the latest data</div>
             </>
           ) : (
             <div className="text-white text-xl">Scene not found</div>
@@ -264,23 +294,11 @@ const SimulationScene: React.FC = () => {
   }
 
   if (!canAccessScene) {
-    return (
-      <div className="h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900">
-        <div className="text-white text-xl">Loading...</div>
-      </div>
-    );
+    return null;
   }
 
   return (
-    <div
-      className="h-screen overflow-hidden relative"
-      style={{
-        backgroundImage: 'url(https://i.ibb.co/BH6c7SRj/Splas.jpg)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-        backgroundRepeat: 'no-repeat'
-      }}
-    >
+    <div className="h-screen overflow-hidden relative bg-gradient-to-br from-gray-900 via-blue-950 to-gray-900">
       {/* Dark overlay */}
       <div className="absolute inset-0 bg-black/60"></div>
 
@@ -291,6 +309,8 @@ const SimulationScene: React.FC = () => {
             current={currentSceneNumber}
             total={state.userData.totalScenes}
             completedScenes={state.userData.completedScenes}
+            orderedSceneIds={orderedSceneIds}
+            accessibleSceneIds={accessibleSceneIds}
           />
         </div>
 
@@ -361,20 +381,22 @@ const SimulationScene: React.FC = () => {
                                 completionTime: Date.now() - state.userData.startTime,
                                 responses: state.userData.responses.length
                               };
-                              navigator.clipboard.writeText(JSON.stringify(results, null, 2));
-                              alert('Results copied to clipboard!');
+                              navigator.clipboard.writeText(JSON.stringify(results, null, 2)).then(() => {
+                                setResultsCopied(true);
+                                setTimeout(() => setResultsCopied(false), 2000);
+                              });
                             }}
                             className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-xs
                                    hover:from-green-400 hover:to-emerald-400 transition-all duration-200 shadow-lg hover:shadow-xl transform hover:scale-105"
                           >
                             <Share2 className="w-3 h-3" />
-                            Share Results
+                            {resultsCopied ? 'Copied!' : 'Share Results'}
                           </button>
                         </div>
                       )}
                       <div className="flex items-center gap-2 text-cyan-400">
                         <Clock className="w-4 h-4" />
-                        <span className="text-sm">{currentSceneNumber} of {state.userData.totalScenes}</span>
+                        <span className="text-sm">{currentScenePosition >= 0 ? currentScenePosition + 1 : currentSceneNumber} of {state.userData.totalScenes}</span>
                       </div>
                     </div>
                   </div>
@@ -410,9 +432,6 @@ const SimulationScene: React.FC = () => {
                                 loading="lazy"
                                 onError={(e) => {
                                   console.error('Iframe failed to load:', e);
-                                }}
-                                onLoad={() => {
-                                  console.log('Iframe loaded successfully');
                                 }}
                               />
                             ) : currentSceneNumber === 8 ? (
@@ -578,7 +597,7 @@ const SimulationScene: React.FC = () => {
                      enabled:hover:from-cyan-400 enabled:hover:to-blue-400 
                      transition-all duration-200 shadow-lg text-xs"
           >
-            {currentSceneNumber >= state.userData.totalScenes ? 'View Results' : 'Next Scene'}
+            {nextSceneIdForNav === null ? 'View Results' : 'Next Scene'}
             <ChevronRight className="w-3 h-3" />
           </button>
         </div>

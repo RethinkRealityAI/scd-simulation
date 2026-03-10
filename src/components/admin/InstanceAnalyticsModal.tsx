@@ -22,7 +22,7 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
     loading,
     error,
     getPerformanceByEducationLevel,
-    getPerformanceByAgeGroup,
+    getPerformanceByField,
     refetch
   } = useAnalytics(analyticsInstanceId);
 
@@ -38,7 +38,7 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
       ['Metric', 'Value'],
       ['Total Sessions', summary.totalUsers.toString()],
       ['Average Score', summary.averageScore.toFixed(1)],
-      ['Average Completion Time (min)', summary.averageCompletionTime.toFixed(1)],
+      ['Average Completion Time (min)', (summary.averageCompletionTime / 60000).toFixed(1)],
       ['Average Completed Scenes', summary.averageCompletedScenes.toString()],
       ['', ''],
       ['Category', 'Average Score'],
@@ -207,7 +207,7 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
                         </div>
                         <div>
                           <p className="text-sm text-purple-600 font-medium">Avg. Time</p>
-                          <p className="text-2xl font-bold text-purple-900">{summary.averageCompletionTime.toFixed(1)}m</p>
+                          <p className="text-2xl font-bold text-purple-900">{(summary.averageCompletionTime / 60000).toFixed(1)}m</p>
                         </div>
                       </div>
                     </div>
@@ -310,11 +310,11 @@ const InstanceAnalyticsModal: React.FC<InstanceAnalyticsModalProps> = ({ instanc
                     </div>
 
                     <div className="bg-white border border-gray-200 rounded-xl p-6">
-                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Age Groups</h3>
+                      <h3 className="text-lg font-semibold text-gray-900 mb-4">Field of Work</h3>
                       <div className="space-y-3">
-                        {Object.entries(getPerformanceByAgeGroup()).map(([ageGroup, data]) => (
-                          <div key={ageGroup} className="flex items-center justify-between">
-                            <span className="text-gray-700">{ageGroup}</span>
+                        {Object.entries(getPerformanceByField()).map(([field, data]) => (
+                          <div key={field} className="flex items-center justify-between">
+                            <span className="text-gray-700">{field}</span>
                             <div className="flex items-center gap-2">
                               <div className="w-24 bg-gray-200 rounded-full h-2">
                                 <div

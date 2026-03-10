@@ -551,25 +551,24 @@ const SceneBuilder: React.FC<SceneBuilderProps> = ({
           </div>
         </div>
 
-        {/* Right: panel toggle + error + close */}
+        {/* Right: save + error + close */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {mode === 'canvas' && (
-            <button
-              onClick={() => setPanelCollapsed(v => !v)}
-              title={panelCollapsed ? 'Show panel' : 'Hide panel'}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 text-gray-400 hover:text-white hover:bg-gray-700 rounded-lg text-xs transition-colors"
-            >
-              {panelCollapsed
-                ? <><Layout className="w-3.5 h-3.5" /><span>Show Panel</span></>
-                : <><X className="w-3.5 h-3.5" /><span>Hide Panel</span></>}
-            </button>
-          )}
           {error && (
             <div className="flex items-center gap-1.5 px-3 py-1.5 bg-red-900/50 border border-red-700 rounded-lg">
               <AlertCircle className="w-3.5 h-3.5 text-red-400" />
               <span className="text-red-300 text-xs">{error}</span>
             </div>
           )}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-xs font-semibold transition-colors shadow-sm shadow-emerald-900/40"
+          >
+            {saving
+              ? <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+              : <CheckCircle className="w-3.5 h-3.5" />}
+            {saving ? 'Saving…' : 'Save'}
+          </button>
           <button
             onClick={handleClose}
             className="flex items-center gap-1.5 px-3 py-1.5 text-gray-300 hover:text-white hover:bg-gray-700 rounded-xl text-xs font-medium transition-colors"

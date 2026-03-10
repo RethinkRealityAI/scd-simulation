@@ -6,12 +6,27 @@ interface ProgressBarProps {
   current: number;
   total: number;
   completedScenes: Set<number>;
+  orderedSceneIds?: number[];
+  accessibleSceneIds?: number[];
 }
 
-const ProgressBar: React.FC<ProgressBarProps> = ({ current, total, completedScenes }) => {
+const ProgressBar: React.FC<ProgressBarProps> = ({
+  current,
+  total,
+  completedScenes,
+  orderedSceneIds,
+  accessibleSceneIds,
+}) => {
   const [hoveredScene, setHoveredScene] = useState<number | null>(null);
 
-
+  const sceneIds = orderedSceneIds && orderedSceneIds.length > 0
+    ? orderedSceneIds
+    : Array.from({ length: total }, (_, index) => index + 1);
+  const accessibleSet = new Set(
+    accessibleSceneIds && accessibleSceneIds.length > 0
+      ? accessibleSceneIds
+      : sceneIds,
+  );
 
   return (
     <div className="w-full">
@@ -23,12 +38,11 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ current, total, completedScen
       </div>
 
       <div className="flex items-center gap-1">
-        {Array.from({ length: total }, (_, index) => {
-          const sceneNumber = index + 1;
-          const scene = scenes[index];
+        {sceneIds.map((sceneNumber, index) => {
+          const scene = scenes.find(item => parseInt(item.id, 10) === sceneNumber);
           const isCompleted = completedScenes.has(sceneNumber);
           const isCurrent = sceneNumber === current;
-          const isAccessible = sceneNumber <= Math.max(current, Math.max(...Array.from(completedScenes)) + 1);
+          const isAccessible = accessibleSet.has(sceneNumber);
 
           return (
             <React.Fragment key={sceneNumber}>
@@ -65,7 +79,7 @@ const ProgressBar: React.FC<ProgressBarProps> = ({ current, total, completedScen
                 )}
               </div>
 
-              {index < total - 1 && (
+              {index < sceneIds.length - 1 && (
                 <div
                   className={`flex-1 h-0.5 rounded-full transition-all duration-300 mx-0.5 ${completedScenes.has(sceneNumber) ? 'bg-gradient-to-r from-green-400 to-emerald-400' : 'bg-slate-600'
                     }`}

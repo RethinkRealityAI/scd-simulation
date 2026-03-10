@@ -14,6 +14,7 @@ export interface SceneAnswer {
   questionId: string;
   answer: string;
   isCorrect: boolean;
+  score?: number;
 }
 
 export interface RuntimeResponse {
@@ -140,11 +141,13 @@ export function renderSceneComponent({
   switch (type) {
     case 'scene-header':
       return (
-        <div className="w-full h-full rounded-lg bg-white/10 backdrop-blur-xl border border-white/20 p-2 flex flex-col justify-start min-h-0 overflow-hidden">
+        <div className="w-full h-full rounded-lg bg-white/10 backdrop-blur-xl border border-white/20 px-3 py-2 flex flex-col justify-center gap-0.5 min-h-0 overflow-hidden">
           <h1 className="text-base font-bold bg-gradient-to-r from-purple-400 via-blue-400 to-cyan-400 bg-clip-text text-transparent leading-tight flex-shrink-0 truncate">
             {scene.title}
           </h1>
-          <p className="text-gray-100 text-sm leading-relaxed mt-1 flex-1 min-h-0 overflow-hidden">{scene.description}</p>
+          {scene.description && (
+            <p className="text-gray-200 text-sm leading-snug flex-shrink-0 line-clamp-2">{scene.description}</p>
+          )}
         </div>
       );
 

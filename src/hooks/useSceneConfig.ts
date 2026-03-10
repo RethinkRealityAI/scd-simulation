@@ -52,27 +52,57 @@ export const useSceneConfig = (sceneId: number, instanceId?: string) => {
           actionPrompt: undefined,
         };
 
-        // Try to load configuration from database
-        let query = supabase
-          .from('scene_configurations')
-          .select('*')
-          .eq('scene_id', sceneId)
-          .eq('is_active', true);
+        let dbConfig: any = null;
 
         if (instanceId) {
-          query = query.eq('instance_id', instanceId);
+          const { data: instanceConfig, error: instanceError } = await supabase
+            .from('scene_configurations')
+            .select('*')
+            .eq('scene_id', sceneId)
+            .eq('is_active', true)
+            .eq('instance_id', instanceId)
+            .maybeSingle();
+
+          if (instanceError && instanceError.code !== 'PGRST116') {
+            console.error('Error loading instance scene configuration:', instanceError);
+          }
+
+          dbConfig = instanceConfig;
+
+          // Safe fallback: if the instance does not override this scene,
+          // fall back to the base/global scene configuration.
+          if (!dbConfig) {
+            const { data: globalConfig, error: globalError } = await supabase
+              .from('scene_configurations')
+              .select('*')
+              .eq('scene_id', sceneId)
+              .eq('is_active', true)
+              .is('instance_id', null)
+              .maybeSingle();
+
+            if (globalError && globalError.code !== 'PGRST116') {
+              console.error('Error loading global fallback scene configuration:', globalError);
+            }
+
+            dbConfig = globalConfig;
+          }
         } else {
-          query = query.is('instance_id', null);
-        }
+          const { data, error } = await supabase
+            .from('scene_configurations')
+            .select('*')
+            .eq('scene_id', sceneId)
+            .eq('is_active', true)
+            .is('instance_id', null)
+            .maybeSingle();
 
-        const { data: dbConfig, error } = await query.maybeSingle();
+          if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
+            console.error('Error loading scene configuration:', error);
+          }
 
-        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-          console.error('Error loading scene configuration:', error);
+          dbConfig = data;
         }
 
         if (dbConfig) {
-          console.log(`✓ Loaded scene ${sceneId} configuration from database`);
           // Merge database config with static scene (database takes precedence only when non-empty)
           const mergedScene: SceneData = {
             ...templateScene,
@@ -95,19 +125,12 @@ export const useSceneConfig = (sceneId: number, instanceId?: string) => {
           };
           setSceneData(mergedScene);
         } else {
-          // Instance-specific simulations should not silently fall back to global static scenes.
-          if (instanceId) {
-            console.log(`No instance scene config found for scene ${sceneId}`);
-            setSceneData(null);
-          } else {
-            console.log(`Using static configuration for scene ${sceneId} (no database config found)`);
-            setSceneData(staticScene || null);
-          }
+          setSceneData(staticScene || null);
         }
       } catch (err) {
         console.error('Error in loadSceneConfig:', err);
         const staticScene = scenes.find(scene => parseInt(scene.id, 10) === sceneId);
-        setSceneData(instanceId ? null : (staticScene || null));
+        setSceneData(staticScene || null);
       } finally {
         setLoading(false);
       }
@@ -132,36 +155,64 @@ export const useAllSceneConfigs = (instanceId?: string) => {
       try {
         setLoading(true);
 
-        // Load all database configurations
-        let query = supabase
-          .from('scene_configurations')
-          .select('*')
-          .eq('is_active', true)
-          .order('scene_id');
-
         if (instanceId) {
-          query = query.eq('instance_id', instanceId);
-        } else {
-          query = query.is('instance_id', null);
-        }
+          const [
+            { data: instanceConfigs, error: instanceError },
+            { data: globalConfigs, error: globalError },
+          ] = await Promise.all([
+            supabase
+              .from('scene_configurations')
+              .select('*')
+              .eq('is_active', true)
+              .eq('instance_id', instanceId)
+              .order('scene_id'),
+            supabase
+              .from('scene_configurations')
+              .select('*')
+              .eq('is_active', true)
+              .is('instance_id', null)
+              .order('scene_id'),
+          ]);
 
-        const { data: dbConfigs, error } = await query;
+          if (instanceError || globalError) {
+            console.error('Error loading scene configurations:', instanceError || globalError);
+            setAllScenes(scenes);
+            setLoading(false);
+            return;
+          }
 
-        if (error) {
-          console.error('Error loading scene configurations:', error);
-          setAllScenes(instanceId ? [] : scenes);
-          setLoading(false);
-          return;
-        }
+          const instanceById = new Map((instanceConfigs || []).map(config => [config.scene_id, config]));
+          const globalById = new Map((globalConfigs || []).map(config => [config.scene_id, config]));
 
-        if (dbConfigs && dbConfigs.length > 0) {
-          console.log(`✓ Loaded ${dbConfigs.length} scene configurations from database`);
+          const mergedStaticScenes = scenes.map(staticScene => {
+            const sceneId = parseInt(staticScene.id, 10);
+            const dbConfig = instanceById.get(sceneId) || globalById.get(sceneId);
+            if (!dbConfig) return staticScene;
 
-          if (instanceId) {
-            // Instance scope: only return instance-defined scenes.
-            const mergedScenes = dbConfigs.map(dbConfig => {
-              const staticScene = scenes.find(scene => parseInt(scene.id, 10) === dbConfig.scene_id);
-              const templateScene = staticScene ?? {
+            return {
+              ...staticScene,
+              title: dbConfig.title || staticScene.title,
+              description: dbConfig.description || staticScene.description,
+              vitals: hasValue(dbConfig.vitals_config) ? dbConfig.vitals_config : staticScene.vitals,
+              vitalsDisplayConfig: hasValue(dbConfig.vitals_display_config) ? dbConfig.vitals_display_config : staticScene.vitalsDisplayConfig,
+              quiz: hasValue(dbConfig.quiz_questions) ? dbConfig.quiz_questions : staticScene.quiz,
+              actionPrompt: normalizeActionPromptConfig(
+                hasValue(dbConfig.action_prompts) ? dbConfig.action_prompts : staticScene.actionPrompt,
+                staticScene.actionPrompt,
+              ),
+              discussionPrompts: hasValue(dbConfig.discussion_prompts) ? dbConfig.discussion_prompts : staticScene.discussionPrompts,
+              clinicalFindings: hasValue(dbConfig.clinical_findings) ? dbConfig.clinical_findings : staticScene.clinicalFindings,
+              scoringCategories: hasValue(dbConfig.scoring_categories) ? dbConfig.scoring_categories : staticScene.scoringCategories,
+              layoutConfig: normalizeSceneLayoutConfig(
+                hasValue(dbConfig.layout_config) ? dbConfig.layout_config : staticScene.layoutConfig,
+              ),
+            } as SceneData;
+          });
+
+          const extraInstanceScenes = (instanceConfigs || [])
+            .filter(dbConfig => !scenes.some(staticScene => parseInt(staticScene.id, 10) === dbConfig.scene_id))
+            .map(dbConfig => {
+              const templateScene = {
                 ...scenes[0],
                 id: dbConfig.scene_id.toString(),
                 title: `Scene ${dbConfig.scene_id}`,
@@ -195,9 +246,27 @@ export const useAllSceneConfigs = (instanceId?: string) => {
               } as SceneData;
             });
 
-            mergedScenes.sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10));
-            setAllScenes(mergedScenes);
-          } else {
+          setAllScenes(
+            [...mergedStaticScenes, ...extraInstanceScenes]
+              .sort((a, b) => parseInt(a.id, 10) - parseInt(b.id, 10)),
+          );
+        } else {
+          // Load all database configurations
+          const { data: dbConfigs, error } = await supabase
+            .from('scene_configurations')
+            .select('*')
+            .eq('is_active', true)
+            .is('instance_id', null)
+            .order('scene_id');
+
+          if (error) {
+            console.error('Error loading scene configurations:', error);
+            setAllScenes(scenes);
+            setLoading(false);
+            return;
+          }
+
+          if (dbConfigs && dbConfigs.length > 0) {
             // Global scope: preserve static scenes and overlay db config.
             const mergedStaticScenes = scenes.map(staticScene => {
               const dbConfig = dbConfigs.find(config => config.scene_id === parseInt(staticScene.id, 10));
@@ -224,13 +293,7 @@ export const useAllSceneConfigs = (instanceId?: string) => {
             });
 
             setAllScenes(mergedStaticScenes);
-          }
-        } else {
-          if (instanceId) {
-            console.log('No instance-scoped scene configurations found');
-            setAllScenes([]);
           } else {
-            console.log('No database configurations found, using static scenes');
             setAllScenes(scenes);
           }
         }

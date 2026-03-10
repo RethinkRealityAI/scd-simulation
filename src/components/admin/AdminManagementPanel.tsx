@@ -202,7 +202,7 @@ const CreateAdminModal: React.FC<CreateAdminModalProps> = ({ onClose, onCreated,
             </div>
             <div>
               <h2 className="text-base font-bold">Add Admin</h2>
-              <p className="text-slate-400 text-xs mt-0.5">Create a new administrator account</p>
+              <p className="text-slate-400 text-xs mt-0.5">Create a new admin or super admin account</p>
             </div>
           </div>
           <button
@@ -564,7 +564,7 @@ const AdminManagementPanel: React.FC = () => {
             Admin Users
           </h2>
           <p className="text-sm text-gray-500 mt-0.5">
-            Manage who has access to this administration dashboard.
+            Manage who has access to this administration dashboard, including super admins.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -657,7 +657,7 @@ const AdminManagementPanel: React.FC = () => {
         <AlertCircle className="w-4 h-4 text-amber-600 flex-shrink-0 mt-0.5" />
         <div className="text-xs text-amber-800 space-y-1">
           <p className="font-semibold">About admin accounts</p>
-          <p>New admins receive a temporary password that you share with them. They can log in immediately and should update their password from their account settings. Removing someone from this list revokes their dashboard access.</p>
+          <p>Super admins can create admins or other super admins, choose their starting password, and share those credentials securely. New admins can update their password from the Account tab or use Forgot password from the admin login page. Removing someone from this list revokes their dashboard access.</p>
         </div>
       </div>
 

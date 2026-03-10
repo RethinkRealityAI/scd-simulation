@@ -13,11 +13,11 @@ interface ScenePreviewProps {
 
 const ScenePreview: React.FC<ScenePreviewProps> = ({ sceneData, onClose }) => {
   const [showDiscussion, setShowDiscussion] = useState(false);
-  const [sceneResponses, setSceneResponses] = useState<Array<{ questionId: string; answer: string; isCorrect: boolean }>>([]);
+  const [sceneResponses, setSceneResponses] = useState<Array<{ questionId: string; answer: string; isCorrect: boolean; score?: number }>>([]);
   const [allQuestionsSubmitted, setAllQuestionsSubmitted] = useState(false);
   const [isSceneCompleted, setIsSceneCompleted] = useState(false);
 
-  const handleQuizAnswered = (responses: Array<{ questionId: string; answer: string; isCorrect: boolean }>) => {
+  const handleQuizAnswered = (responses: Array<{ questionId: string; answer: string; isCorrect: boolean; score?: number }>) => {
     setSceneResponses(responses);
     setAllQuestionsSubmitted(true);
   };

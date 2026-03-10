@@ -7,6 +7,7 @@ export interface UserResponse {
   sceneId: string;
   answer: string;
   isCorrect: boolean;
+  score?: number;
   timeSpent: number;
   timestamp: number;
 }
@@ -48,6 +49,7 @@ type SimulationAction =
   | { type: 'ADD_RESPONSE'; payload: UserResponse }
   | { type: 'SET_CURRENT_SCENE'; payload: number }
   | { type: 'COMPLETE_SCENE'; payload: number }
+  | { type: 'SET_TOTAL_SCENES'; payload: number }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'RESET_SIMULATION' }
@@ -116,7 +118,6 @@ function simulationReducer(state: SimulationState, action: SimulationAction): Si
       };
     case 'COMPLETE_SCENE':
       const newCompletedScenes = new Set([...state.userData.completedScenes, action.payload]);
-      console.log('Completing scene:', action.payload, 'New completed scenes:', Array.from(newCompletedScenes));
       return {
         ...state,
         userData: {
@@ -124,6 +125,8 @@ function simulationReducer(state: SimulationState, action: SimulationAction): Si
           completedScenes: newCompletedScenes,
         },
       };
+    case 'SET_TOTAL_SCENES':
+      return { ...state, userData: { ...state.userData, totalScenes: action.payload } };
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
     case 'SET_ERROR':
@@ -131,7 +134,7 @@ function simulationReducer(state: SimulationState, action: SimulationAction): Si
     case 'RESET_SIMULATION':
       return initialState;
     case 'RESET_SCENE_STATE':
-      return state;
+      return initialState;
     default:
       return state;
   }
@@ -153,9 +156,7 @@ const calculateCategoryScores = (responses: UserResponse[]): CategoryScore[] => 
     if (scene?.scoringCategories) {
       scene.scoringCategories.forEach(category => {
         categoryMap[category].total += 1;
-        if (response.isCorrect) {
-          categoryMap[category].correct += 1;
-        }
+        categoryMap[category].correct += response.score ?? (response.isCorrect ? 1 : 0);
       });
     }
   });
@@ -174,57 +175,73 @@ export const SimulationContext = createContext<{
   dispatch: React.Dispatch<SimulationAction>;
   calculateScore: () => number;
   calculateCategoryScores: () => CategoryScore[];
-  sendDataToWebhook: () => Promise<void>;
+  sendDataToWebhook: (overrides?: {
+    responses?: UserResponse[];
+    completedScenes?: Set<number>;
+    totalScenes?: number;
+  }) => Promise<void>;
 } | null>(null);
 
 export function SimulationProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(simulationReducer, initialState);
 
-  const calculateScore = (): number => {
-    const correctResponses = state.userData.responses.filter(r => r.isCorrect).length;
-    const totalResponses = state.userData.responses.length;
-    return totalResponses > 0 ? Math.round((correctResponses / totalResponses) * 100) : 0;
+  const calculateScore = (responses: UserResponse[] = state.userData.responses): number => {
+    const earnedScore = responses.reduce((sum, response) => sum + (response.score ?? (response.isCorrect ? 1 : 0)), 0);
+    const totalResponses = responses.length;
+    return totalResponses > 0 ? Math.round((earnedScore / totalResponses) * 100) : 0;
   };
 
-  const calculateCategoryScoresFunc = (): CategoryScore[] => {
-    return calculateCategoryScores(state.userData.responses);
+  const calculateCategoryScoresFunc = (responses: UserResponse[] = state.userData.responses): CategoryScore[] => {
+    return calculateCategoryScores(responses);
   };
 
-  const sendDataToWebhook = async (): Promise<void> => {
+  const sendDataToWebhook = async (overrides?: {
+    responses?: UserResponse[];
+    completedScenes?: Set<number>;
+    totalScenes?: number;
+  }): Promise<void> => {
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
 
-      const completionTime = Date.now() - state.userData.startTime;
-      const score = calculateScore();
-      const categoryScores = calculateCategoryScoresFunc();
+      const userData = {
+        ...state.userData,
+        ...(overrides?.responses ? { responses: overrides.responses } : {}),
+        ...(overrides?.completedScenes ? { completedScenes: overrides.completedScenes } : {}),
+        ...(overrides?.totalScenes ? { totalScenes: overrides.totalScenes } : {}),
+      };
+
+      const completionTime = Date.now() - userData.startTime;
+      const score = calculateScore(userData.responses);
+      const categoryScores = calculateCategoryScoresFunc(userData.responses);
 
       // Ensure all required data points are included for webhook transmission
       const payload = {
-        id: state.userData.id, // Using ID instead of userId
+        id: userData.id, // Using ID instead of userId
         demographics: {
-          name: state.userData.name,
-          userType: state.userData.userType,
-          educationLevel: state.userData.educationLevel,
-          organization: state.userData.organization,
-          school: state.userData.school,
-          year: state.userData.year,
-          program: state.userData.program,
-          field: state.userData.field,
-          howHeard: state.userData.howHeard,
+          name: userData.name,
+          userType: userData.userType,
+          educationLevel: userData.educationLevel,
+          organization: userData.organization,
+          school: userData.school,
+          year: userData.year,
+          program: userData.program,
+          field: userData.field,
+          howHeard: userData.howHeard,
         },
         sessionData: {
-          startTime: state.userData.startTime,
+          startTime: userData.startTime,
           completionTime,
           timestamp: new Date().toISOString(), // Added explicit timestamp
-          totalScenes: state.userData.totalScenes,
-          completedScenes: Array.from(state.userData.completedScenes),
+          totalScenes: userData.totalScenes,
+          completedScenes: Array.from(userData.completedScenes),
         },
         // All user answers to each scene question
-        responses: state.userData.responses.map(response => ({
+        responses: userData.responses.map(response => ({
           questionId: response.questionId,
           sceneId: response.sceneId,
           answer: response.answer,
           isCorrect: response.isCorrect,
+          score: response.score,
           timeSpent: response.timeSpent,
           timestamp: new Date(response.timestamp).toISOString(),
         })),
@@ -254,17 +271,12 @@ export function SimulationProvider({ children }: { children: React.ReactNode }) 
           completed_scenes: payload.sessionData.completedScenes
         };
 
-        console.log('Attempting to save to session_data table:', dbPayload);
-
         const { error: dbError } = await supabase
           .from('session_data')
           .insert(dbPayload);
 
         if (dbError) {
           console.error('Error saving to session_data database:', dbError);
-          // Don't throw here - continue with webhook even if DB save fails
-        } else {
-          console.log('Successfully saved to session_data database');
         }
       } catch (dbError) {
         console.error('Error saving to analytics database:', dbError);

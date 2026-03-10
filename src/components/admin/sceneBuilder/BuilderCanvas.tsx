@@ -91,76 +91,20 @@ const BuilderCanvas: React.FC<BuilderCanvasProps> = ({
   return (
     <div
       ref={containerRef}
-      className="relative w-full h-full min-w-0 min-h-0 overflow-hidden"
-      style={{
-        backgroundImage: 'url(https://i.ibb.co/BH6c7SRj/Splas.jpg)',
-        backgroundSize: 'cover',
-        backgroundPosition: 'center',
-      }}
+      className="relative w-full h-full min-w-0 min-h-0 overflow-hidden bg-gradient-to-br from-gray-900 via-blue-950 to-gray-900"
       onClick={(e) => {
         if (e.target === containerRef.current) onSelectComponent(null);
       }}
     >
-      <div className="absolute inset-0 bg-black/60 pointer-events-none" />
+      {/* Dark scene overlay */}
+      <div className="absolute inset-0 bg-black/50 pointer-events-none" />
 
       {/*
-       * LAYER 1: CSS Grid preview — renders the actual scene components
-       * using the same fr-based grid as the user-facing DynamicSceneLayout.
-       * This ensures components ALWAYS look identical to the frontend scene.
+       * Single-layer canvas: react-grid-layout acts as both the interaction
+       * layer AND renders the actual components. No separate CSS-Grid preview
+       * layer — eliminates all positional drift between editor and display.
        */}
-      <div
-        className="absolute inset-0 z-0 pointer-events-none overflow-hidden"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: `repeat(${GRID_COLS}, 1fr)`,
-          gridTemplateRows: `repeat(${GRID_ROWS}, 1fr)`,
-          gap: `${GRID_MARGIN[1]}px ${GRID_MARGIN[0]}px`,
-          padding: `${GRID_CONTAINER_PADDING[1]}px ${GRID_CONTAINER_PADDING[0]}px`,
-          boxSizing: 'border-box',
-        }}
-      >
-        {enabledComponents.map(comp => {
-          const node = renderSceneComponent({
-            type: comp.type,
-            scene: sceneData,
-            sceneId: sceneData.id,
-            videoUrl: effectiveVideoUrl,
-            videosLoading: false,
-            isPreview: true,
-            interactiveVariant: 'combined',
-            suppressCompletionControls: false,
-            sceneAudioFiles: [],
-            sceneResponses: [],
-            allQuestionsSubmitted: false,
-            showDiscussion: false,
-            isSceneCompleted: false,
-          });
-          if (!node) return null;
-          return (
-            <div
-              key={comp.id}
-              className="relative min-w-0 min-h-0 overflow-hidden rounded-xl"
-              style={{
-                gridColumn: `${comp.x + 1} / ${comp.x + comp.w + 1}`,
-                gridRow: `${comp.y + 1} / ${comp.y + comp.h + 1}`,
-              }}
-            >
-              {/* Absolute inner wrapper enforces strict clipping regardless of child sizing */}
-              <div className="absolute inset-0 flex flex-col min-h-0 min-w-0 overflow-hidden">
-                {node}
-              </div>
-            </div>
-          );
-        })}
-      </div>
-
-      {/*
-       * LAYER 2: react-grid-layout — invisible interaction layer for
-       * drag handles and resize handles. This sits on top of the preview
-       * so admin can rearrange, but the actual visual content is rendered
-       * by Layer 1 above (no clipping issues).
-       */}
-      <div className="relative z-10 w-full h-full min-w-0 min-h-0 overflow-hidden">
+      <div className="relative z-10 w-full h-full min-w-0 min-h-0">
         <GridLayout
           className="layout"
           // @ts-ignore
@@ -169,7 +113,8 @@ const BuilderCanvas: React.FC<BuilderCanvasProps> = ({
           rowHeight={rowHeight}
           width={canvasWidth}
           maxRows={GRID_ROWS}
-          compactType="vertical"
+          // null = items stay exactly where placed; no auto-compaction
+          compactType={null}
           preventCollision={false}
           isResizable={true}
           isDraggable={true}
@@ -185,31 +130,62 @@ const BuilderCanvas: React.FC<BuilderCanvasProps> = ({
             const def = COMPONENT_REGISTRY[comp.type];
             const isSelected = selectedComponentId === comp.id;
 
+            const node = renderSceneComponent({
+              type: comp.type,
+              scene: sceneData,
+              sceneId: sceneData.id,
+              videoUrl: effectiveVideoUrl,
+              videosLoading: false,
+              isPreview: true,
+              interactiveVariant: 'combined',
+              suppressCompletionControls: false,
+              sceneAudioFiles: [],
+              sceneResponses: [],
+              allQuestionsSubmitted: false,
+              showDiscussion: false,
+              isSceneCompleted: false,
+            });
+
             return (
               <div
                 key={comp.id}
-                className={`grid-item group relative rounded-xl transition-all duration-150
-                  ${isSelected
-                    ? 'ring-2 ring-blue-400 ring-offset-1 ring-offset-transparent selected'
-                    : 'ring-1 ring-white/10 hover:ring-white/30'
-                  }`}
+                className={`relative overflow-hidden rounded-xl transition-all duration-100 cursor-default group ${
+                  isSelected
+                    ? 'ring-2 ring-blue-400 ring-offset-0'
+                    : 'ring-1 ring-white/15 hover:ring-white/35'
+                }`}
                 onClick={(e) => { e.stopPropagation(); onSelectComponent(comp.id); }}
               >
-                {/* Overlay controls — drag handle + toggle/remove buttons */}
+                {/* Component content fills the entire RGL cell */}
+                <div className="absolute inset-0 min-w-0 min-h-0 overflow-hidden">
+                  {node}
+                </div>
+
+                {/* Selection tint */}
+                {isSelected && (
+                  <div className="absolute inset-0 bg-blue-500/8 pointer-events-none rounded-xl" />
+                )}
+
+                {/* Top bar: drag handle (left) + toggle/remove buttons (right) */}
                 <div className="absolute inset-x-1.5 top-1.5 z-20 flex items-start justify-between pointer-events-none">
+                  {/* Drag handle — only element that initiates drag */}
                   <div
-                    className={`drag-handle pointer-events-auto inline-flex max-w-[calc(100%-4rem)] items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium select-none backdrop-blur-sm cursor-grab active:cursor-grabbing transition-colors ${isSelected
-                      ? 'bg-blue-600/85 border-blue-300/40 text-white'
-                      : 'bg-black/50 border-white/15 text-white/80 group-hover:bg-black/65 group-hover:text-white'
-                      }`}
+                    className={`drag-handle pointer-events-auto inline-flex max-w-[calc(100%-4.5rem)] items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium select-none backdrop-blur-sm cursor-grab active:cursor-grabbing transition-colors ${
+                      isSelected
+                        ? 'bg-blue-600/85 border-blue-300/40 text-white'
+                        : 'bg-black/55 border-white/15 text-white/75 group-hover:bg-black/70 group-hover:text-white'
+                    }`}
                   >
                     <GripVertical className="w-2.5 h-2.5 flex-shrink-0 opacity-70" />
                     <ComponentIcon type={comp.type} className="w-2.5 h-2.5 flex-shrink-0 opacity-80" />
                     <span className="truncate">{def.label}</span>
                   </div>
 
+                  {/* Toggle visibility + remove — visible on hover or when selected */}
                   <div
-                    className={`pointer-events-auto flex items-center gap-0.5 transition-opacity ${isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                    className={`pointer-events-auto flex items-center gap-0.5 transition-opacity ${
+                      isSelected ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'
+                    }`}
                     onMouseDown={e => e.stopPropagation()}
                   >
                     <button
@@ -228,10 +204,6 @@ const BuilderCanvas: React.FC<BuilderCanvasProps> = ({
                     </button>
                   </div>
                 </div>
-
-                {isSelected && (
-                  <div className="absolute inset-0 rounded-xl pointer-events-none ring-2 ring-blue-400" />
-                )}
               </div>
             );
           })}

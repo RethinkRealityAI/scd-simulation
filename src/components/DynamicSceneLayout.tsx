@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { SceneData, SceneLayoutConfig } from '../data/scenesData';
+import { SceneComponentLayout, SceneData, SceneLayoutConfig } from '../data/scenesData';
 import { renderSceneComponent, RuntimeResponse, SceneAnswer, SceneAudioFileLike } from './renderSceneComponent';
 import {
   GRID_COLS,
@@ -32,9 +32,46 @@ interface DynamicSceneLayoutProps {
 }
 
 /**
+ * Expands key content components to fill vertical space that is vacant below
+ * them in the same column band. This keeps the video and interactive panel
+ * visually aligned when optional blocks like clinical findings or audio are
+ * hidden.
+ */
+function computeAdaptiveLayout(
+  components: SceneComponentLayout[],
+): SceneComponentLayout[] {
+  const expandableTypes = new Set(['video-player', 'interactive-panel']);
+
+  return components.map(component => {
+    if (!expandableTypes.has(component.type)) return component;
+
+    const componentBottom = component.y + component.h;
+    let nextOccupied = GRID_ROWS;
+
+    for (const comp of components) {
+      if (comp === component) continue;
+
+      const xOverlap = comp.x < component.x + component.w && comp.x + comp.w > component.x;
+      if (xOverlap && comp.y >= componentBottom) {
+        nextOccupied = Math.min(nextOccupied, comp.y);
+      }
+    }
+
+    if (nextOccupied <= componentBottom) return component;
+
+    return {
+      ...component,
+      h: nextOccupied - component.y,
+    };
+  });
+}
+
+/**
  * User-facing dynamic scene layout.
- * Uses native CSS Grid (fr units) so components ALWAYS fill the container exactly —
- * no pixel arithmetic, no overflow, no react-grid-layout dependency at render time.
+ * Uses native CSS Grid (fr units) so components ALWAYS fill the container
+ * exactly — no pixel arithmetic, no overflow, no react-grid-layout dependency
+ * at render time. Applies adaptive expansion so the video and interactive
+ * panel fill space left vacant by removed/hidden optional components.
  */
 const DynamicSceneLayout: React.FC<DynamicSceneLayoutProps> = ({
   scene,
@@ -58,6 +95,7 @@ const DynamicSceneLayout: React.FC<DynamicSceneLayoutProps> = ({
   allResponses = [],
   isPreview = false,
 }) => {
+  // Step 1: filter to only components that are enabled and have data
   const enabledComponents = useMemo(() => {
     return layoutConfig.components.filter(c => {
       if (!c.enabled) return false;
@@ -67,6 +105,12 @@ const DynamicSceneLayout: React.FC<DynamicSceneLayoutProps> = ({
       return true;
     });
   }, [layoutConfig.components, isPreview, sceneAudioFiles, scene.clinicalFindings, videoUrl, scene.iframeUrl, scene.id]);
+
+  // Step 2: expand core content components to fill any vacant space below them
+  const adaptedComponents = useMemo(
+    () => (isPreview ? enabledComponents : computeAdaptiveLayout(enabledComponents)),
+    [enabledComponents, isPreview],
+  );
 
   return (
     <div
@@ -80,7 +124,7 @@ const DynamicSceneLayout: React.FC<DynamicSceneLayoutProps> = ({
         boxSizing: 'border-box',
       }}
     >
-      {enabledComponents.map(comp => {
+      {adaptedComponents.map(comp => {
         const node = renderSceneComponent({
           type: comp.type,
           scene,

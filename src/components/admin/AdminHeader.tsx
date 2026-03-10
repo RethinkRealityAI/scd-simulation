@@ -1,8 +1,10 @@
 import React from 'react';
-import { Building2, Settings, BarChart3, Home, LogOut, Users, Sparkles } from 'lucide-react';
+import { Building2, Settings, BarChart3, Home, LogOut, Users, Sparkles, User } from 'lucide-react';
 import InstitutionSelector from './InstitutionSelector';
 import { SimulationInstance } from '../../hooks/useSimulationInstances';
 import { useAuth } from '../../context/AuthContext';
+
+type AdminRole = 'super_admin' | 'admin' | 'editor';
 
 interface AdminHeaderProps {
   selectedInstanceId: string | null;
@@ -13,6 +15,7 @@ interface AdminHeaderProps {
   onTabChange: (tab: string) => void;
   instances: SimulationInstance[];
   loading?: boolean;
+  adminRole?: AdminRole;
 }
 
 const AdminHeader: React.FC<AdminHeaderProps> = ({
@@ -23,17 +26,23 @@ const AdminHeader: React.FC<AdminHeaderProps> = ({
   activeTab,
   onTabChange,
   instances,
-  loading = false
+  loading = false,
+  adminRole = 'admin',
 }) => {
   const { signOut } = useAuth();
 
-  const tabs = [
-    { id: 'instances', name: 'Instances', icon: Building2 },
-    { id: 'scenes', name: 'Scenes', icon: Settings },
-    { id: 'welcome', name: 'Welcome', icon: Home },
-    { id: 'analytics', name: 'Analytics', icon: BarChart3 },
-    { id: 'admins', name: 'Admins', icon: Users },
+  const allTabs = [
+    { id: 'instances', name: 'Instances', icon: Building2, editorAllowed: false },
+    { id: 'scenes', name: 'Scenes', icon: Settings, editorAllowed: true },
+    { id: 'welcome', name: 'Welcome', icon: Home, editorAllowed: true },
+    { id: 'analytics', name: 'Analytics', icon: BarChart3, editorAllowed: true },
+    { id: 'admins', name: 'Admins', icon: Users, editorAllowed: false },
+    { id: 'account', name: 'Account', icon: User, editorAllowed: true },
   ];
+
+  const tabs = adminRole === 'editor'
+    ? allTabs.filter(t => t.editorAllowed)
+    : allTabs;
 
   return (
     <header className="bg-slate-900 text-white flex-shrink-0">

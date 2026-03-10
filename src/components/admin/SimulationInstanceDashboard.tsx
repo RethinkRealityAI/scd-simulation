@@ -330,13 +330,15 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
     });
   };
 
+  const [newTokenValue, setNewTokenValue] = useState<string | null>(null);
+
   const handleGenerateToken = async (instanceId: string, name: string, description: string, expiresAt: string, maxUses?: number) => {
     const token = await generateToken(instanceId, name, description);
     if (expiresAt || maxUses) {
       await supabase.from('instance_access_tokens').update({ expires_at: expiresAt || null, max_uses: maxUses ?? null }).eq('id', token.id);
       await fetchTokens();
     }
-    showToast('Access token generated');
+    setNewTokenValue(token.token);
   };
 
   const handleRevokeToken = (token: AccessToken) => {
@@ -657,8 +659,49 @@ const SimulationInstanceDashboard: React.FC<SimulationInstanceDashboardProps> = 
           onClose={() => { setShowAnalyticsModal(false); setSelectedInstance(null); }}
         />
       )}
-      {showGenerateTokenModal && (
+      {showGenerateTokenModal && !newTokenValue && (
         <GenerateTokenModal instances={instances} onClose={() => setShowGenerateTokenModal(false)} onGenerate={handleGenerateToken} />
+      )}
+
+      {/* One-time token reveal modal */}
+      {newTokenValue && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[60] p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className="flex items-center gap-3 px-5 py-4 bg-amber-50 border-b border-amber-200">
+              <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0" />
+              <div>
+                <h3 className="text-sm font-bold text-amber-900">Copy your token now</h3>
+                <p className="text-xs text-amber-700 mt-0.5">This token value will not be shown again after you close this dialog.</p>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              <div className="bg-gray-50 rounded-xl border border-gray-200 p-3">
+                <p className="text-[10px] font-semibold text-gray-500 mb-1.5 uppercase tracking-wide">Token Value</p>
+                <div className="flex items-center gap-2">
+                  <code className="flex-1 text-xs font-mono text-gray-800 break-all">{newTokenValue}</code>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(newTokenValue).then(() => showToast('Token copied'));
+                    }}
+                    className="flex-shrink-0 p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+                    title="Copy token"
+                  >
+                    <Copy className="w-4 h-4" />
+                  </button>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setNewTokenValue(null);
+                  setShowGenerateTokenModal(false);
+                }}
+                className="w-full px-4 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-semibold hover:bg-slate-800 transition-colors"
+              >
+                I've copied it — close
+              </button>
+            </div>
+          </div>
+        </div>
       )}
       {confirmDialog && (
         <ConfirmDialog

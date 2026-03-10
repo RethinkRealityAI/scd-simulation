@@ -5,8 +5,8 @@ export interface AnalyticsEntry {
   id: string;
   session_id: string;
   user_demographics: {
-    age: string;
-    educationLevel: string;
+    userType?: 'student' | 'professional';
+    educationLevel?: string;
     organization?: string;
     school?: string;
     year?: string;
@@ -23,6 +23,7 @@ export interface AnalyticsEntry {
     correctAnswer?: string | string[];
     explanation?: string;
     isCorrect: boolean;
+    score?: number;
     timeSpent: number;
     timestamp: string;
     options?: string[];
@@ -77,7 +78,6 @@ export function useAnalytics(instanceId?: string) {
     setLoading(true);
     setError(null);
 
-    console.log('Fetching analytics from session_data table...');
 
     try {
       const targetTable = instanceId ? 'instance_session_data' : 'session_data';
@@ -97,8 +97,6 @@ export function useAnalytics(instanceId?: string) {
         console.error(`Error fetching from ${targetTable}:`, fetchError);
         throw fetchError;
       }
-
-      console.log(`Fetched data from ${targetTable}:`, data);
 
       const formattedData: AnalyticsEntry[] = data?.map(entry => ({
         id: entry.id,
@@ -152,6 +150,8 @@ export function useAnalytics(instanceId?: string) {
           averageCompletedScenes,
           categoryAverages
         });
+      } else {
+        setSummary(null);
       }
     } catch (err) {
       console.error('Error fetching analytics:', err);
@@ -250,22 +250,22 @@ export function useAnalytics(instanceId?: string) {
     return result;
   };
 
-  const getPerformanceByAgeGroup = () => {
+  const getPerformanceByField = () => {
     if (!analyticsData.length) return {};
 
-    const ageGroups = analyticsData.reduce((acc, entry) => {
-      const age = entry.user_demographics?.age || 'Unknown';
-      if (!acc[age]) {
-        acc[age] = [];
+    const fieldGroups = analyticsData.reduce((acc, entry) => {
+      const field = entry.user_demographics?.field || 'Unknown';
+      if (!acc[field]) {
+        acc[field] = [];
       }
-      acc[age].push(entry);
+      acc[field].push(entry);
       return acc;
     }, {} as Record<string, AnalyticsEntry[]>);
 
     const result: Record<string, { averageScore: number; count: number }> = {};
 
-    Object.entries(ageGroups).forEach(([age, entries]) => {
-      result[age] = {
+    Object.entries(fieldGroups).forEach(([field, entries]) => {
+      result[field] = {
         averageScore: Math.round(
           entries.reduce((acc, entry) => acc + entry.final_score, 0) / entries.length
         ),
@@ -289,7 +289,7 @@ export function useAnalytics(instanceId?: string) {
     insertAnalyticsEntry,
     getAnalyticsByDateRange,
     getPerformanceByEducationLevel,
-    getPerformanceByAgeGroup,
+    getPerformanceByField,
     refetch: fetchAnalytics
   };
 }

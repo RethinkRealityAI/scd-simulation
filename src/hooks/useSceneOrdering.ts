@@ -259,6 +259,59 @@ export const useSceneOrdering = (instanceId?: string) => {
     return [...sceneOrder].sort((a, b) => a.display_order - b.display_order);
   };
 
+  /**
+   * Returns active, non-completion scenes in display order.
+   * These are the scenes that contain actual simulation content.
+   */
+  const getContentScenes = (): SceneOrderItem[] => {
+    return [...sceneOrder]
+      .filter(item => item.is_active && !item.is_completion_scene)
+      .sort((a, b) => a.display_order - b.display_order);
+  };
+
+  /**
+   * Returns the scene_id of the next content scene after the given scene_id,
+   * or null if the given scene is the last content scene.
+   */
+  const getNextContentScene = (currentSceneId: number): number | null => {
+    const contentScenes = getContentScenes();
+    const idx = contentScenes.findIndex(s => s.scene_id === currentSceneId);
+    if (idx === -1 || idx === contentScenes.length - 1) return null;
+    return contentScenes[idx + 1].scene_id;
+  };
+
+  const getPreviousContentScene = (currentSceneId: number): number | null => {
+    const contentScenes = getContentScenes();
+    const idx = contentScenes.findIndex(s => s.scene_id === currentSceneId);
+    if (idx <= 0) return null;
+    return contentScenes[idx - 1].scene_id;
+  };
+
+  const getContentSceneIndex = (sceneId: number): number => {
+    return getContentScenes().findIndex(s => s.scene_id === sceneId);
+  };
+
+  /**
+   * Returns the first not-yet-completed scene in ordered content flow.
+   * Completed scenes remain revisitable, but only the next missing scene
+   * should unlock for forward progress.
+   */
+  const getFirstUnlockedContentScene = (completedSceneIds: number[]): number | null => {
+    const completedSet = new Set(completedSceneIds);
+    const contentScenes = getContentScenes();
+    const nextUnfinished = contentScenes.find(item => !completedSet.has(item.scene_id));
+    return nextUnfinished?.scene_id ?? null;
+  };
+
+  const getAccessibleContentSceneIds = (completedSceneIds: number[]): number[] => {
+    const completedSet = new Set(completedSceneIds);
+    const firstUnlocked = getFirstUnlockedContentScene(completedSceneIds);
+
+    return getContentScenes()
+      .filter(item => completedSet.has(item.scene_id) || item.scene_id === firstUnlocked)
+      .map(item => item.scene_id);
+  };
+
   const canAddMoreScenes = (): boolean => {
     return sceneOrder.length < 20; // Maximum 20 scenes
   };
@@ -329,6 +382,12 @@ export const useSceneOrdering = (instanceId?: string) => {
     removeSceneFromOrder,
     reorderScenes,
     getOrderedScenes,
+    getContentScenes,
+    getNextContentScene,
+    getPreviousContentScene,
+    getContentSceneIndex,
+    getFirstUnlockedContentScene,
+    getAccessibleContentSceneIds,
     canAddMoreScenes,
     getCompletionScene,
     getSceneById,

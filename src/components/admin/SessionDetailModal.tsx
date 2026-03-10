@@ -11,9 +11,10 @@ interface SessionDetailModalProps {
 const SessionDetailModal: React.FC<SessionDetailModalProps> = ({ session, isOpen, onClose }) => {
   if (!isOpen) return null;
 
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
+  const formatTime = (milliseconds: number) => {
+    const totalSeconds = Math.floor(milliseconds / 1000);
+    const minutes = Math.floor(totalSeconds / 60);
+    const remainingSeconds = totalSeconds % 60;
     return `${minutes}m ${remainingSeconds}s`;
   };
 
@@ -140,14 +141,18 @@ const SessionDetailModal: React.FC<SessionDetailModalProps> = ({ session, isOpen
                 User Demographics
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Age Group:</span>
-                  <p className="text-gray-900">{session.user_demographics.age}</p>
-                </div>
-                <div>
-                  <span className="text-sm font-medium text-gray-600">Education Level:</span>
-                  <p className="text-gray-900">{session.user_demographics.educationLevel}</p>
-                </div>
+                {session.user_demographics.userType && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">User Type:</span>
+                    <p className="text-gray-900 capitalize">{session.user_demographics.userType}</p>
+                  </div>
+                )}
+                {session.user_demographics.educationLevel && (
+                  <div>
+                    <span className="text-sm font-medium text-gray-600">Education Level:</span>
+                    <p className="text-gray-900">{session.user_demographics.educationLevel}</p>
+                  </div>
+                )}
                 {session.user_demographics.organization && (
                   <div>
                     <span className="text-sm font-medium text-gray-600">Organization:</span>

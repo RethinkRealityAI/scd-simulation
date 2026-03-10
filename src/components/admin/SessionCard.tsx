@@ -8,8 +8,8 @@ interface SessionCardProps {
 }
 
 const SessionCard: React.FC<SessionCardProps> = ({ session, onClick }) => {
-  const formatTime = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
+  const formatTime = (milliseconds: number) => {
+    const minutes = Math.floor(milliseconds / 60000);
     return `${minutes}m`;
   };
 
@@ -52,7 +52,13 @@ const SessionCard: React.FC<SessionCardProps> = ({ session, onClick }) => {
           </div>
           <div className="flex items-center gap-2 text-sm text-gray-600">
             <User className="w-3 h-3" />
-            <span>{session.user_demographics.age} • {session.user_demographics.educationLevel}</span>
+            <span className="capitalize">{session.user_demographics.userType || '—'}</span>
+            {(session.user_demographics.educationLevel || session.user_demographics.field) && (
+              <span className="text-gray-400">·</span>
+            )}
+            <span className="truncate max-w-[140px]">
+              {session.user_demographics.educationLevel || session.user_demographics.field || session.user_demographics.school || ''}
+            </span>
           </div>
         </div>
         <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-colors" />

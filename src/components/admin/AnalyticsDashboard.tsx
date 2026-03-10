@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from 'react';
-import { BarChart3, Users, Clock, TrendingUp, Award, Target, RefreshCw, Grid, List, Search, Filter } from 'lucide-react';
+import { BarChart3, Users, Clock, TrendingUp, Award, Target, RefreshCw, Grid, List, Search, Filter, GraduationCap, Stethoscope, Radio } from 'lucide-react';
 import { useAnalytics } from '../../hooks/useAnalytics';
 import SessionCard from './SessionCard';
 import SessionDetailModal from './SessionDetailModal';
@@ -8,6 +8,9 @@ interface AnalyticsDashboardProps {
   instanceId?: string;
 }
 
+const PAGE_SIZE_GRID = 12;
+const PAGE_SIZE_LIST = 10;
+
 const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) => {
   const { analyticsData, summary, loading, error, refetch } = useAnalytics(instanceId);
   const [selectedSession, setSelectedSession] = useState<any>(null);
@@ -15,7 +18,8 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
   const [searchTerm, setSearchTerm] = useState('');
   const [scoreFilter, setScoreFilter] = useState<'all' | 'high' | 'medium' | 'low'>('all');
   const [educationFilter, setEducationFilter] = useState<string>('all');
-  const [ageFilter, setAgeFilter] = useState<string>('all');
+  const [fieldFilter, setFieldFilter] = useState<string>('all');
+  const [currentPage, setCurrentPage] = useState(1);
   const categoryBarColors: Record<string, string> = {
     orange: 'bg-orange-500',
     blue: 'bg-blue-500',
@@ -23,45 +27,66 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
     purple: 'bg-purple-500',
     pink: 'bg-pink-500',
   };
+  const demographicCardClassMap: Record<string, { container: string; icon: string; label: string; value: string; meta: string }> = {
+    blue: {
+      container: 'rounded-lg p-4 bg-blue-50 border border-blue-100',
+      icon: 'w-4 h-4 text-blue-600',
+      label: 'text-sm font-semibold text-blue-800',
+      value: 'text-2xl font-bold text-blue-700',
+      meta: 'text-xs text-blue-500 mt-0.5',
+    },
+    purple: {
+      container: 'rounded-lg p-4 bg-purple-50 border border-purple-100',
+      icon: 'w-4 h-4 text-purple-600',
+      label: 'text-sm font-semibold text-purple-800',
+      value: 'text-2xl font-bold text-purple-700',
+      meta: 'text-xs text-purple-500 mt-0.5',
+    },
+    gray: {
+      container: 'rounded-lg p-4 bg-gray-50 border border-gray-100',
+      icon: 'w-4 h-4 text-gray-600',
+      label: 'text-sm font-semibold text-gray-800',
+      value: 'text-2xl font-bold text-gray-700',
+      meta: 'text-xs text-gray-500 mt-0.5',
+    },
+  };
 
   // Filter and search logic
   const filteredData = useMemo(() => {
     if (!analyticsData) return [];
 
     return analyticsData.filter(session => {
-      // Search filter
       if (searchTerm) {
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch =
           session.session_id?.toLowerCase().includes(searchLower) ||
-          (session.user_demographics?.age && String(session.user_demographics.age).toLowerCase().includes(searchLower)) ||
           (session.user_demographics?.educationLevel && String(session.user_demographics.educationLevel).toLowerCase().includes(searchLower)) ||
+          (session.user_demographics?.field && String(session.user_demographics.field).toLowerCase().includes(searchLower)) ||
           (session.user_demographics?.organization && String(session.user_demographics.organization).toLowerCase().includes(searchLower)) ||
           (session.user_demographics?.school && String(session.user_demographics.school).toLowerCase().includes(searchLower));
-
         if (!matchesSearch) return false;
       }
 
-      // Score filter
       if (scoreFilter !== 'all') {
         if (scoreFilter === 'high' && session.final_score < 80) return false;
         if (scoreFilter === 'medium' && (session.final_score < 60 || session.final_score >= 80)) return false;
         if (scoreFilter === 'low' && session.final_score >= 60) return false;
       }
 
-      // Education filter
       if (educationFilter !== 'all' && session.user_demographics?.educationLevel !== educationFilter) {
         return false;
       }
 
-      // Age filter
-      if (ageFilter !== 'all' && session.user_demographics?.age !== ageFilter) {
+      if (fieldFilter !== 'all' && session.user_demographics?.field !== fieldFilter) {
         return false;
       }
 
       return true;
     });
-  }, [analyticsData, searchTerm, scoreFilter, educationFilter, ageFilter]);
+  }, [analyticsData, searchTerm, scoreFilter, educationFilter, fieldFilter]);
+
+  // Reset to page 1 whenever filters change
+  React.useEffect(() => { setCurrentPage(1); }, [searchTerm, scoreFilter, educationFilter, fieldFilter, viewMode]);
 
   // Get unique values for filters
   const uniqueEducationLevels = useMemo(() => {
@@ -69,10 +94,55 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
     return Array.from(new Set(analyticsData.map(s => s.user_demographics?.educationLevel).filter(Boolean)));
   }, [analyticsData]);
 
-  const uniqueAgeGroups = useMemo(() => {
+  const uniqueFields = useMemo(() => {
     if (!analyticsData) return [];
-    return Array.from(new Set(analyticsData.map(s => s.user_demographics?.age).filter(Boolean)));
+    return Array.from(new Set(analyticsData.map(s => s.user_demographics?.field).filter(Boolean)));
   }, [analyticsData]);
+
+  // ── Demographic breakdown computations ──────────────────────────────────────
+  const demographics = useMemo(() => {
+    if (!analyticsData || analyticsData.length === 0) return null;
+
+    const countBy = <T extends string>(
+      arr: T[],
+    ): { label: T; count: number; pct: number }[] => {
+      const total = arr.length;
+      const map: Record<string, number> = {};
+      arr.forEach(v => { map[v] = (map[v] || 0) + 1; });
+      return Object.entries(map)
+        .sort(([, a], [, b]) => b - a)
+        .map(([label, count]) => ({ label: label as T, count, pct: Math.round((count / total) * 100) }));
+    };
+
+    const n = analyticsData.length;
+
+    const students = analyticsData.filter(s => s.user_demographics?.userType === 'student');
+    const professionals = analyticsData.filter(s => s.user_demographics?.userType === 'professional');
+    const unknown = analyticsData.filter(s => !s.user_demographics?.userType);
+
+    const educationLevels = countBy(
+      analyticsData.map(s => s.user_demographics?.educationLevel).filter(Boolean) as string[],
+    );
+    const fields = countBy(
+      analyticsData.map(s => s.user_demographics?.field).filter(Boolean) as string[],
+    );
+    const schools = countBy(
+      analyticsData.map(s => s.user_demographics?.school).filter(Boolean) as string[],
+    );
+    const programs = countBy(
+      analyticsData.map(s => s.user_demographics?.program).filter(Boolean) as string[],
+    );
+    const howHeard = countBy(
+      analyticsData.map(s => s.user_demographics?.howHeard).filter(Boolean) as string[],
+    );
+
+    return { n, students, professionals, unknown, educationLevels, fields, schools, programs, howHeard };
+  }, [analyticsData]);
+
+  // Pagination helpers
+  const pageSize = viewMode === 'grid' ? PAGE_SIZE_GRID : PAGE_SIZE_LIST;
+  const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize));
+  const pagedData = filteredData.slice((currentPage - 1) * pageSize, currentPage * pageSize);
 
   if (loading) {
     return (
@@ -121,14 +191,14 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
       {/* Summary Cards */}
       {summary && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          {/* Total Users */}
+          {/* Total Sessions */}
           <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6">
             <div className="flex items-center justify-between mb-2">
               <Users className="w-8 h-8 text-blue-600" />
-              <span className="text-sm font-medium text-gray-500">Total Users</span>
+              <span className="text-sm font-medium text-gray-500">Total Sessions</span>
             </div>
             <div className="text-3xl font-bold text-gray-900">{summary.totalUsers}</div>
-            <p className="text-sm text-gray-500 mt-1">Completed simulations</p>
+            <p className="text-sm text-gray-500 mt-1">Simulation completions</p>
           </div>
 
           {/* Average Score */}
@@ -148,7 +218,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
               <span className="text-sm font-medium text-gray-500">Avg Time</span>
             </div>
             <div className="text-3xl font-bold text-gray-900">
-              {Math.round(summary.averageCompletionTime / 60)}
+              {Math.round(summary.averageCompletionTime / 60000)}
               <span className="text-lg text-gray-500 ml-1">min</span>
             </div>
             <p className="text-sm text-gray-500 mt-1">To complete simulation</p>
@@ -162,6 +232,133 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
             </div>
             <div className="text-3xl font-bold text-gray-900">{summary.averageCompletedScenes}</div>
             <p className="text-sm text-gray-500 mt-1">Scenes completed</p>
+          </div>
+        </div>
+      )}
+
+      {/* Demographic Insights */}
+      {demographics && (
+        <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6 space-y-6">
+          <h3 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+            <Users className="w-5 h-5 text-blue-600" />
+            Learner Demographics
+            <span className="ml-auto text-sm font-normal text-gray-400">{demographics.n} session{demographics.n !== 1 ? 's' : ''}</span>
+          </h3>
+
+          {/* Student vs Professional */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              { label: 'Students', count: demographics.students.length, color: 'blue', Icon: GraduationCap },
+              { label: 'Professionals', count: demographics.professionals.length, color: 'purple', Icon: Stethoscope },
+              { label: 'Not specified', count: demographics.unknown.length, color: 'gray', Icon: Users },
+            ].map(({ label, count, color, Icon }) => {
+              const pct = Math.round((count / demographics.n) * 100);
+              const styles = demographicCardClassMap[color];
+              return (
+                <div key={label} className={styles.container}>
+                  <div className="flex items-center gap-2 mb-1">
+                    <Icon className={styles.icon} />
+                    <span className={styles.label}>{label}</span>
+                  </div>
+                  <div className={styles.value}>{count}</div>
+                  <div className={styles.meta}>{pct}% of sessions</div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Education Level breakdown */}
+            {demographics.educationLevels.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
+                  <GraduationCap className="w-4 h-4 text-blue-500" />
+                  Education Level
+                </h4>
+                <div className="space-y-2">
+                  {demographics.educationLevels.map(({ label, count, pct }) => (
+                    <div key={label}>
+                      <div className="flex items-center justify-between text-xs text-gray-600 mb-0.5">
+                        <span className="truncate max-w-[200px]">{label}</span>
+                        <span className="font-medium text-gray-900 ml-2 flex-shrink-0">{count} <span className="text-gray-400">({pct}%)</span></span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div className="h-2 rounded-full bg-blue-400" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Field of Work breakdown (professionals) */}
+            {demographics.fields.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
+                  <Stethoscope className="w-4 h-4 text-purple-500" />
+                  Field of Work
+                </h4>
+                <div className="space-y-2">
+                  {demographics.fields.slice(0, 8).map(({ label, count, pct }) => (
+                    <div key={label}>
+                      <div className="flex items-center justify-between text-xs text-gray-600 mb-0.5">
+                        <span className="truncate max-w-[200px]">{label}</span>
+                        <span className="font-medium text-gray-900 ml-2 flex-shrink-0">{count} <span className="text-gray-400">({pct}%)</span></span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div className="h-2 rounded-full bg-purple-400" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Programs breakdown (students) */}
+            {demographics.programs.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
+                  <GraduationCap className="w-4 h-4 text-cyan-500" />
+                  Programs
+                </h4>
+                <div className="space-y-2">
+                  {demographics.programs.slice(0, 6).map(({ label, count, pct }) => (
+                    <div key={label}>
+                      <div className="flex items-center justify-between text-xs text-gray-600 mb-0.5">
+                        <span className="truncate max-w-[200px]">{label}</span>
+                        <span className="font-medium text-gray-900 ml-2 flex-shrink-0">{count} <span className="text-gray-400">({pct}%)</span></span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div className="h-2 rounded-full bg-cyan-400" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* How They Heard */}
+            {demographics.howHeard.length > 0 && (
+              <div>
+                <h4 className="text-sm font-semibold text-gray-700 mb-3 flex items-center gap-1.5">
+                  <Radio className="w-4 h-4 text-emerald-500" />
+                  How They Heard
+                </h4>
+                <div className="space-y-2">
+                  {demographics.howHeard.map(({ label, count, pct }) => (
+                    <div key={label}>
+                      <div className="flex items-center justify-between text-xs text-gray-600 mb-0.5">
+                        <span className="truncate max-w-[200px]">{label}</span>
+                        <span className="font-medium text-gray-900 ml-2 flex-shrink-0">{count} <span className="text-gray-400">({pct}%)</span></span>
+                      </div>
+                      <div className="w-full bg-gray-100 rounded-full h-2">
+                        <div className="h-2 rounded-full bg-emerald-400" style={{ width: `${pct}%` }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -272,17 +469,19 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
                 ))}
               </select>
 
-              {/* Age Filter */}
-              <select
-                value={ageFilter}
-                onChange={(e) => setAgeFilter(e.target.value)}
-                className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Age Groups</option>
-                {uniqueAgeGroups.map(age => (
-                  <option key={age} value={age}>{age}</option>
-                ))}
-              </select>
+              {/* Field Filter */}
+              {uniqueFields.length > 0 && (
+                <select
+                  value={fieldFilter}
+                  onChange={(e) => setFieldFilter(e.target.value)}
+                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="all">All Fields</option>
+                  {uniqueFields.map(field => (
+                    <option key={field} value={field}>{field}</option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 
@@ -294,7 +493,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
             </div>
           ) : viewMode === 'grid' ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredData.slice(0, 12).map((session) => (
+              {pagedData.map((session) => (
                 <SessionCard
                   key={session.id}
                   session={session}
@@ -308,7 +507,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
                 <thead>
                   <tr className="border-b border-gray-200">
                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Date</th>
-                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Age Group</th>
+                    <th className="text-left py-3 px-4 font-semibold text-gray-700">Field</th>
                     <th className="text-left py-3 px-4 font-semibold text-gray-700">Education</th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-700">Score</th>
                     <th className="text-right py-3 px-4 font-semibold text-gray-700">Time</th>
@@ -317,7 +516,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredData.slice(0, 10).map((entry, index) => (
+                  {pagedData.map((entry, index) => (
                     <tr
                       key={entry.id}
                       className={`${index % 2 === 0 ? 'bg-gray-50' : ''} hover:bg-blue-50 transition-colors`}
@@ -326,7 +525,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
                         {new Date(entry.submission_timestamp).toLocaleDateString()}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600">
-                        {entry.user_demographics?.age || 'N/A'}
+                        {entry.user_demographics?.field || 'N/A'}
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-600">
                         {entry.user_demographics?.educationLevel || 'N/A'}
@@ -335,7 +534,7 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
                         {entry.final_score}%
                       </td>
                       <td className="py-3 px-4 text-sm text-right text-gray-600">
-                        {Math.round(entry.completion_time / 60)}m
+                        {Math.round(entry.completion_time / 60000)}m
                       </td>
                       <td className="py-3 px-4 text-sm text-right text-gray-600">
                         {entry.completed_scenes.length}
@@ -352,6 +551,48 @@ const AnalyticsDashboard: React.FC<AnalyticsDashboardProps> = ({ instanceId }) =
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {/* Pagination */}
+          {totalPages > 1 && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-gray-100">
+              <p className="text-sm text-gray-500">
+                Page {currentPage} of {totalPages} &middot; {filteredData.length} sessions
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                >
+                  Previous
+                </button>
+                {Array.from({ length: Math.min(totalPages, 7) }, (_, i) => {
+                  const page = totalPages <= 7 ? i + 1 : currentPage <= 4 ? i + 1 : currentPage + i - 3;
+                  if (page < 1 || page > totalPages) return null;
+                  return (
+                    <button
+                      key={page}
+                      onClick={() => setCurrentPage(page)}
+                      className={`px-3 py-1.5 text-sm border rounded-lg transition-colors ${
+                        page === currentPage
+                          ? 'bg-blue-600 border-blue-600 text-white'
+                          : 'border-gray-300 hover:bg-gray-50'
+                      }`}
+                    >
+                      {page}
+                    </button>
+                  );
+                })}
+                <button
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg disabled:opacity-40 hover:bg-gray-50 transition-colors"
+                >
+                  Next
+                </button>
+              </div>
             </div>
           )}
         </div>

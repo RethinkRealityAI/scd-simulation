@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { SimulationInstance } from '../hooks/useSimulationInstances';
+import { scenes } from '../data/scenesData';
 
 export interface InstanceUserData {
   id: string;
@@ -25,6 +26,7 @@ export interface UserResponse {
   sceneId: number;
   answer: string;
   isCorrect: boolean;
+  score?: number;
   timeSpent: number;
   timestamp: number;
 }
@@ -48,6 +50,7 @@ type InstanceSimulationAction =
   | { type: 'ADD_RESPONSE'; payload: UserResponse }
   | { type: 'SET_CURRENT_SCENE'; payload: number }
   | { type: 'COMPLETE_SCENE'; payload: number }
+  | { type: 'SET_TOTAL_SCENES'; payload: number }
   | { type: 'SET_LOADING'; payload: boolean }
   | { type: 'SET_ERROR'; payload: string | null }
   | { type: 'SET_INSTANCE'; payload: SimulationInstance }
@@ -121,6 +124,8 @@ function instanceSimulationReducer(state: InstanceSimulationState, action: Insta
           completedScenes: newCompletedScenes,
         },
       };
+    case 'SET_TOTAL_SCENES':
+      return { ...state, userData: { ...state.userData, totalScenes: action.payload } };
     case 'SET_LOADING':
       return { ...state, isLoading: action.payload };
     case 'SET_ERROR':
@@ -146,17 +151,17 @@ const calculateCategoryScores = (responses: UserResponse[]): CategoryScore[] => 
   const categoryStats: { [key: string]: { correct: number; total: number } } = {};
 
   responses.forEach(response => {
-    // Extract category from questionId (assuming format like "scene1_question1_category")
-    const category = response.questionId.split('_').pop() || 'general';
+    const scene = scenes.find(item => parseInt(item.id, 10) === response.sceneId);
+    if (!scene?.scoringCategories?.length) return;
 
-    if (!categoryStats[category]) {
-      categoryStats[category] = { correct: 0, total: 0 };
-    }
+    scene.scoringCategories.forEach(category => {
+      if (!categoryStats[category]) {
+        categoryStats[category] = { correct: 0, total: 0 };
+      }
 
-    categoryStats[category].total++;
-    if (response.isCorrect) {
-      categoryStats[category].correct++;
-    }
+      categoryStats[category].total++;
+      categoryStats[category].correct += response.score ?? (response.isCorrect ? 1 : 0);
+    });
   });
 
   return Object.entries(categoryStats).map(([category, stats]) => ({
@@ -172,21 +177,25 @@ export const InstanceSimulationContext = createContext<{
   dispatch: React.Dispatch<InstanceSimulationAction>;
   calculateScore: () => number;
   calculateCategoryScores: () => CategoryScore[];
-  sendDataToWebhook: () => Promise<void>;
+  sendDataToWebhook: (overrides?: {
+    responses?: UserResponse[];
+    completedScenes?: Set<number>;
+    totalScenes?: number;
+  }) => Promise<void>;
   loadInstance: (institutionId: string) => Promise<void>;
 } | null>(null);
 
 export function InstanceSimulationProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(instanceSimulationReducer, initialState);
 
-  const calculateScore = (): number => {
-    const correctResponses = state.userData.responses.filter(r => r.isCorrect).length;
-    const totalResponses = state.userData.responses.length;
-    return totalResponses > 0 ? Math.round((correctResponses / totalResponses) * 100) : 0;
+  const calculateScore = (responses: UserResponse[] = state.userData.responses): number => {
+    const earnedScore = responses.reduce((sum, response) => sum + (response.score ?? (response.isCorrect ? 1 : 0)), 0);
+    const totalResponses = responses.length;
+    return totalResponses > 0 ? Math.round((earnedScore / totalResponses) * 100) : 0;
   };
 
-  const calculateCategoryScoresFunc = (): CategoryScore[] => {
-    return calculateCategoryScores(state.userData.responses);
+  const calculateCategoryScoresFunc = (responses: UserResponse[] = state.userData.responses): CategoryScore[] => {
+    return calculateCategoryScores(responses);
   };
 
   const loadInstance = useCallback(async (institutionId: string): Promise<void> => {
@@ -212,7 +221,11 @@ export function InstanceSimulationProvider({ children }: { children: React.React
     }
   }, []);
 
-  const sendDataToWebhook = async (): Promise<void> => {
+  const sendDataToWebhook = async (overrides?: {
+    responses?: UserResponse[];
+    completedScenes?: Set<number>;
+    totalScenes?: number;
+  }): Promise<void> => {
     if (!state.instance) {
       console.error('No instance loaded');
       return;
@@ -221,35 +234,43 @@ export function InstanceSimulationProvider({ children }: { children: React.React
     try {
       dispatch({ type: 'SET_LOADING', payload: true });
 
-      const completionTime = Date.now() - state.userData.startTime;
-      const score = calculateScore();
-      const categoryScores = calculateCategoryScoresFunc();
+      const userData = {
+        ...state.userData,
+        ...(overrides?.responses ? { responses: overrides.responses } : {}),
+        ...(overrides?.completedScenes ? { completedScenes: overrides.completedScenes } : {}),
+        ...(overrides?.totalScenes ? { totalScenes: overrides.totalScenes } : {}),
+      };
+
+      const completionTime = Date.now() - userData.startTime;
+      const score = calculateScore(userData.responses);
+      const categoryScores = calculateCategoryScoresFunc(userData.responses);
 
       const payload = {
         instance_id: state.instance.id,
         institution_id: state.instance.institution_id,
-        session_id: state.userData.id,
+        session_id: userData.id,
         demographics: {
-          educationLevel: state.userData.educationLevel,
-          organization: state.userData.organization,
-          school: state.userData.school,
-          year: state.userData.year,
-          program: state.userData.program,
-          field: state.userData.field,
-          howHeard: state.userData.howHeard,
+          educationLevel: userData.educationLevel,
+          organization: userData.organization,
+          school: userData.school,
+          year: userData.year,
+          program: userData.program,
+          field: userData.field,
+          howHeard: userData.howHeard,
         },
         sessionData: {
-          startTime: state.userData.startTime,
+          startTime: userData.startTime,
           completionTime,
           timestamp: new Date().toISOString(),
-          totalScenes: state.userData.totalScenes,
-          completedScenes: Array.from(state.userData.completedScenes),
+          totalScenes: userData.totalScenes,
+          completedScenes: Array.from(userData.completedScenes),
         },
-        responses: state.userData.responses.map(response => ({
+        responses: userData.responses.map(response => ({
           questionId: response.questionId,
           sceneId: response.sceneId,
           answer: response.answer,
           isCorrect: response.isCorrect,
+          score: response.score,
           timeSpent: response.timeSpent,
           timestamp: new Date(response.timestamp).toISOString(),
         })),
@@ -287,8 +308,6 @@ export function InstanceSimulationProvider({ children }: { children: React.React
 
         if (dbError) {
           console.error('Error saving to instance session data:', dbError);
-        } else {
-          console.log('Successfully saved to instance session data');
         }
       } catch (dbError) {
         console.error('Error saving to instance session data:', dbError);
@@ -316,8 +335,6 @@ export function InstanceSimulationProvider({ children }: { children: React.React
           if (!response.ok) {
             throw new Error(`Webhook failed with status: ${response.status}`);
           }
-
-          console.log('Successfully sent data to webhook');
         } catch (webhookError) {
           console.error('Error sending to webhook:', webhookError);
           // Don't throw here - we still want to save to database

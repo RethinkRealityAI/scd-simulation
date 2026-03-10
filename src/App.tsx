@@ -5,16 +5,20 @@ import SimulationScene from './components/SimulationScene';
 import ResultsScreen from './components/ResultsScreen';
 import AdminDashboard from './components/admin/AdminDashboard';
 import InstanceSimulation from './components/InstanceSimulation';
+import ErrorBoundary from './components/ErrorBoundary';
 import { SimulationProvider } from './context/SimulationContext';
 import { InstanceSimulationProvider } from './context/InstanceSimulationContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import AdminLogin from './components/admin/AdminLogin';
 import { supabase } from './lib/supabase';
 
+type AdminRole = 'super_admin' | 'admin' | 'editor';
+
 const AdminRoute: React.FC = () => {
   const { user, loading, signOut } = useAuth();
   const [adminCheckLoading, setAdminCheckLoading] = useState(true);
   const [hasAdminAccess, setHasAdminAccess] = useState(false);
+  const [adminRole, setAdminRole] = useState<AdminRole>('admin');
   const [adminCheckError, setAdminCheckError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -33,7 +37,7 @@ const AdminRoute: React.FC = () => {
 
       const { data, error } = await supabase
         .from('admin_profiles')
-        .select('id, is_active')
+        .select('id, is_active, role')
         .eq('id', user.id)
         .maybeSingle();
 
@@ -45,27 +49,26 @@ const AdminRoute: React.FC = () => {
       } else {
         if (data?.is_active) {
           setHasAdminAccess(true);
+          setAdminRole((data.role as AdminRole) || 'admin');
         } else if (!data) {
-          // Bootstrap path: if no admin profiles exist yet, policy allows
-          // the first authenticated user to register as super_admin.
-          const { error: bootstrapError } = await supabase
-            .from('admin_profiles')
-            .insert({
-              id: user.id,
-              email: user.email ?? '',
-              full_name: user.user_metadata?.full_name ?? null,
-              role: 'super_admin',
-              is_active: true,
-              created_by: null,
-            });
+          const { error: bootstrapError } = await supabase.rpc('bootstrap_first_admin', {
+            _user_id: user.id,
+            _email: user.email ?? '',
+            _full_name: user.user_metadata?.full_name ?? null,
+          });
 
           if (cancelled) return;
 
           if (bootstrapError) {
             setHasAdminAccess(false);
-            setAdminCheckError(bootstrapError.message);
+            setAdminCheckError(
+              bootstrapError.message.includes('bootstrap_first_admin')
+                ? 'Admin bootstrap is not configured in the database yet. Run the latest Supabase SQL migration first.'
+                : bootstrapError.message,
+            );
           } else {
             setHasAdminAccess(true);
+            setAdminRole('super_admin');
           }
         } else {
           setHasAdminAccess(false);
@@ -120,11 +123,12 @@ const AdminRoute: React.FC = () => {
     );
   }
 
-  return <AdminDashboard />;
+  return <AdminDashboard adminRole={adminRole} />;
 };
 
 function App() {
   return (
+    <ErrorBoundary>
     <AuthProvider>
       <Router>
         <div className="h-screen overflow-hidden">
@@ -159,6 +163,7 @@ function App() {
         </div>
       </Router>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
