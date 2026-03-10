@@ -9,9 +9,12 @@ interface ResourceLink {
 
 interface ResourceLinksProps {
   resources?: ResourceLink[];
+  /** Compact mode hides descriptions and tightens padding — for narrow panel use */
+  compact?: boolean;
 }
 
-const ResourceLinks: React.FC<ResourceLinksProps> = ({ 
+const ResourceLinks: React.FC<ResourceLinksProps> = ({
+  compact = false,
   resources = [
     {
       title: 'Sickle Cell Disease: Pathophysiology and Treatment',
@@ -31,13 +34,13 @@ const ResourceLinks: React.FC<ResourceLinksProps> = ({
   ]
 }) => {
   return (
-    <div className="p-3 rounded-xl bg-amber-500/10 backdrop-blur-xl border border-amber-400/20 shadow-lg">
-      <h3 className="text-sm font-semibold text-white mb-3 flex items-center gap-2">
-        <BookOpen className="w-4 h-4 text-amber-400" />
+    <div className={`rounded-xl bg-amber-500/10 backdrop-blur-xl border border-amber-400/20 shadow-lg ${compact ? 'p-2.5' : 'p-3'}`}>
+      <h3 className={`font-semibold text-white flex items-center gap-1.5 ${compact ? 'text-xs mb-2' : 'text-sm mb-3'}`}>
+        <BookOpen className={`text-amber-400 flex-shrink-0 ${compact ? 'w-3 h-3' : 'w-4 h-4'}`} />
         Continue Your Learning
       </h3>
-      
-      <div className="space-y-2">
+
+      <div className={compact ? 'space-y-1.5' : 'space-y-2'}>
         {resources.map((resource, index) => (
           <a
             key={index}
@@ -45,17 +48,21 @@ const ResourceLinks: React.FC<ResourceLinksProps> = ({
             target="_blank"
             rel="noopener noreferrer"
             aria-label={`Open ${resource.title} in new tab`}
-            className="block p-3 rounded-lg bg-slate-800/40 border border-slate-700/30 hover:bg-slate-800/60 hover:border-amber-400/40 transition-all duration-300 transform hover:scale-[1.02] group focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400/50"
+            className={`block rounded-lg bg-slate-800/40 border border-slate-700/30 hover:bg-slate-800/60 hover:border-amber-400/40
+              transition-all duration-300 group focus:outline-none focus:ring-2 focus:ring-amber-400/50 focus:border-amber-400/50
+              ${compact ? 'p-2' : 'p-3 transform hover:scale-[1.02]'}`}
           >
-            <div className="flex items-start gap-2 mb-1">
-              <ExternalLink className="w-3 h-3 text-amber-400 flex-shrink-0 mt-0.5 group-hover:text-amber-300 transition-colors" />
-              <h4 className="text-white font-semibold text-xs leading-tight group-hover:text-amber-100 transition-colors">
+            <div className="flex items-start gap-1.5">
+              <ExternalLink className={`text-amber-400 flex-shrink-0 mt-0.5 group-hover:text-amber-300 transition-colors ${compact ? 'w-2.5 h-2.5' : 'w-3 h-3'}`} />
+              <h4 className={`text-white font-semibold leading-snug group-hover:text-amber-100 transition-colors ${compact ? 'text-[11px]' : 'text-xs'}`}>
                 {resource.title}
               </h4>
             </div>
-            <p className="text-gray-300 text-xs leading-tight group-hover:text-gray-200 transition-colors pl-5">
-              {resource.description}
-            </p>
+            {!compact && (
+              <p className="text-gray-300 text-xs leading-tight group-hover:text-gray-200 transition-colors pl-5 mt-1">
+                {resource.description}
+              </p>
+            )}
           </a>
         ))}
       </div>
@@ -64,3 +71,4 @@ const ResourceLinks: React.FC<ResourceLinksProps> = ({
 };
 
 export default ResourceLinks;
+

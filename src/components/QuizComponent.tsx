@@ -444,18 +444,19 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
       </div>
 
       <div className="flex-1 min-h-0 overflow-hidden mb-2">
-        {/* Scene 9 Full-Width Reflection Layout */}
+        {/* Scene 9 — Two-column Reflection Layout */}
         {sceneId === '9' ? (
-          <div className="h-full flex flex-col gap-3 min-h-0">
-            {/* Reflection header */}
-            <div className="flex-shrink-0 flex items-center gap-2 px-1">
-              <div className="w-1.5 h-5 rounded-full bg-gradient-to-b from-blue-400 to-purple-500" />
-              <h3 className="text-sm font-bold text-white tracking-wide">Debrief &amp; Reflection</h3>
-              <span className="text-[10px] text-gray-400 ml-auto">Respond to each prompt below</span>
-            </div>
+          <div className="h-full flex gap-3 min-h-0">
 
-            {/* Prompts area - scrollable */}
-            <div className="flex-1 min-h-0 overflow-y-auto space-y-3 pr-1">
+            {/* LEFT: prompts + text areas — scrollable, wider */}
+            <div className="flex-1 min-w-0 flex flex-col gap-2.5 min-h-0 overflow-y-auto pr-1">
+              {/* Section label */}
+              <div className="flex-shrink-0 flex items-center gap-2">
+                <div className="w-1 h-4 rounded-full bg-gradient-to-b from-blue-400 to-purple-500" />
+                <h3 className="text-xs font-bold text-white tracking-wide uppercase">Debrief &amp; Reflection</h3>
+                <span className="text-[10px] text-gray-500 ml-auto">Respond to each prompt</span>
+              </div>
+
               {(() => {
                 const sceneNumber = parseInt(sceneId);
                 const scene = scenes[sceneNumber - 1];
@@ -464,17 +465,17 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
                   : ['Take a moment to reflect on your experience with this sickle cell crisis simulation.'];
 
                 return prompts.map((prompt, index) => (
-                  <div key={index} className="rounded-xl bg-white/5 border border-white/10 overflow-hidden">
-                    {/* Prompt header */}
-                    <div className="px-4 py-3 bg-gradient-to-r from-blue-500/20 to-purple-500/10 border-b border-white/10">
-                      <div className="flex items-start gap-3">
+                  <div key={index} className="rounded-xl bg-white/5 border border-white/10 overflow-hidden flex-shrink-0">
+                    {/* Prompt */}
+                    <div className="px-3 py-2.5 bg-gradient-to-r from-blue-500/20 to-purple-500/10 border-b border-white/10">
+                      <div className="flex items-start gap-2.5">
                         <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-500/40 border border-blue-400/50 flex items-center justify-center text-[10px] font-bold text-blue-200 mt-0.5">
                           {index + 1}
                         </span>
                         <p className="text-sm text-gray-200 leading-relaxed">{prompt}</p>
                       </div>
                     </div>
-                    {/* Response textarea */}
+                    {/* Textarea */}
                     <div className="p-3">
                       <textarea
                         placeholder="Share your thoughts and reflections..."
@@ -496,25 +497,28 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
               })()}
             </div>
 
-            {/* Resources — full width */}
-            <div className="flex-shrink-0">
-              <ResourceLinks />
-            </div>
+            {/* RIGHT: resource links + complete button — narrower, fixed width */}
+            <div className="w-52 flex-shrink-0 flex flex-col gap-3 min-h-0">
+              {/* Resource links — scrollable if needed */}
+              <div className="flex-1 min-h-0 overflow-y-auto">
+                <ResourceLinks compact />
+              </div>
 
-            {/* Complete button — full width, prominent */}
-            {!hideCompletionControls && (
-              <button
-                onClick={onCompleteScene}
-                className="flex-shrink-0 w-full flex items-center justify-center gap-2 px-6 py-3 rounded-xl
-                           bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-sm
-                           hover:from-green-400 hover:to-emerald-400 transition-all duration-200
-                           shadow-lg shadow-green-900/30 hover:shadow-xl hover:shadow-green-800/30
-                           transform hover:scale-[1.01] active:scale-[0.99]"
-              >
-                <Check className="w-4 h-4 flex-shrink-0" />
-                Complete Debrief &amp; Reflection
-              </button>
-            )}
+              {/* Complete button — pinned to bottom of right column */}
+              {!hideCompletionControls && (
+                <button
+                  onClick={onCompleteScene}
+                  className="flex-shrink-0 w-full flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl
+                             bg-gradient-to-r from-green-500 to-emerald-500 text-white font-semibold text-xs
+                             hover:from-green-400 hover:to-emerald-400 transition-all duration-200
+                             shadow-lg shadow-green-900/30 hover:shadow-xl hover:shadow-green-800/30
+                             transform hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  <Check className="w-3.5 h-3.5 flex-shrink-0" />
+                  Complete Debrief
+                </button>
+              )}
+            </div>
 
           </div>
         ) : (
@@ -605,7 +609,7 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
 
             {/* Action Feedback */}
             {actionPrompt && actionSubmitted && (
-              <div>
+              <div className="flex-1 min-h-0 overflow-y-auto space-y-2 pr-0.5">
                 {/* Show options with correct/incorrect highlighting after submission */}
                 {(actionPrompt.type === 'action-selection' || actionPrompt.type === 'multi-select') && actionPrompt.options && (() => {
                   // "All correct" scenario: every option is a valid answer (e.g. Scene 7, 8)
@@ -651,14 +655,14 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
                             <div className="flex items-center gap-2">
                               {actionPrompt.type === 'multi-select' && (
                                 <div className={`w-4 h-4 rounded border flex-shrink-0 flex items-center justify-center transition-all ${isAllCorrectScenario
-                                    ? wasSelected
+                                  ? wasSelected
+                                    ? 'bg-green-400 border-green-400'
+                                    : 'border-amber-400/60 bg-transparent'
+                                  : wasSelected
+                                    ? isCorrectOption
                                       ? 'bg-green-400 border-green-400'
-                                      : 'border-amber-400/60 bg-transparent'
-                                    : wasSelected
-                                      ? isCorrectOption
-                                        ? 'bg-green-400 border-green-400'
-                                        : 'bg-red-400 border-red-400'
-                                      : 'border-slate-500 bg-transparent'
+                                      : 'bg-red-400 border-red-400'
+                                    : 'border-slate-500 bg-transparent'
                                   }`}>
                                   {isAllCorrectScenario
                                     ? wasSelected && <Check className="w-3 h-3 text-slate-900" />
@@ -801,10 +805,10 @@ const QuizComponent: React.FC<QuizComponentProps> = ({
 
                   return (
                     <div className={`p-3 rounded-lg border-l-4 shadow-lg animate-fade-in ${isCorrect
-                        ? 'bg-green-500/20 border-green-400 shadow-green-500/20'
-                        : isPartialMultiSelect
-                          ? 'bg-amber-500/15 border-amber-400 shadow-amber-500/20'
-                          : 'bg-red-500/20 border-red-400 shadow-red-500/20'
+                      ? 'bg-green-500/20 border-green-400 shadow-green-500/20'
+                      : isPartialMultiSelect
+                        ? 'bg-amber-500/15 border-amber-400 shadow-amber-500/20'
+                        : 'bg-red-500/20 border-red-400 shadow-red-500/20'
                       }`}>
                       <div className="flex items-center gap-2 mb-2">
                         <Sparkles className={`w-3 h-3 ${isCorrect ? 'text-green-400' : isPartialMultiSelect ? 'text-amber-400' : 'text-red-400'}`} />
